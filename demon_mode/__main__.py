@@ -243,7 +243,7 @@ def _codex_observation(path: str, current: datetime):
         if not isinstance(event, dict) or event.get("type") != "event_msg":
             continue
         payload = event.get("payload")
-        if not isinstance(payload, dict) or payload.get("type") != "token_info":
+        if not isinstance(payload, dict) or payload.get("type") not in ("token_info", "token_count"):
             continue
         rate_limits = payload.get("rate_limits")
         if not isinstance(rate_limits, dict):
@@ -280,7 +280,7 @@ def _codex_observation(path: str, current: datetime):
             )
         )
     if not candidates:
-        raise InputUnavailable("no supported Codex token_info rate-limit event was found")
+        raise InputUnavailable("no supported Codex rate-limit event was found")
     return max(candidates, key=lambda item: item[0])[1]
 
 

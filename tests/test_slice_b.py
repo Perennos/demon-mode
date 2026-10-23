@@ -15,6 +15,7 @@ from demon_mode.governor import (
     CONFLICT_SCHEMAS,
     MODE_RANK,
     MODE_POLICY,
+    SOURCE_SCHEMAS,
     GovernorState,
     WeeklyMetrics,
     advance_state,
@@ -916,6 +917,74 @@ class SliceBTests(unittest.TestCase):
             self.assertEqual(policy.weekly_used, 18.0)
             self.assertEqual(policy.short_used, 44.0)
             self.assertNotIn(str(path).encode(), db.read_bytes())
+
+    def test_codex_token_info_and_token_count_event_names(self):
+        observed = NOW - timedelta(hours=2)
+        weekly_reset = observed + timedelta(hours=100)
+        cases = (
+            ("token_info", "token_info", False),
+            ("token_count", "token_count", False),
+            ("unsupported", "synthetic_other_event", False),
+            ("duplicate_weekly", "token_count", True),
+        )
+        with tempfile.TemporaryDirectory() as temp:
+            for label, event_name, duplicate_weekly in cases:
+                with self.subTest(case=label):
+                    db = Path(temp) / f"{label}.sqlite3"
+                    path = Path(temp) / f"{label}.jsonl"
+                    rate_limits = {
+                        "primary": {
+                            "used_percent": 18.0,
+                            "window_minutes": 10080,
+                            "resets_at": weekly_reset.timestamp(),
+                        },
+                        "credits": {
+                            "used_percent": None,
+                            "window_minutes": None,
+                            "resets_at": None,
+                        },
+                    }
+                    if duplicate_weekly:
+                        rate_limits["secondary"] = {
+                            "used_percent": 20.0,
+                            "window_minutes": 10080,
+                            "resets_at": weekly_reset.timestamp(),
+                        }
+                    event = {
+                        "timestamp": observed.isoformat(),
+                        "type": "event_msg",
+                        "payload": {"type": event_name, "rate_limits": rate_limits},
+                    }
+                    path.write_text(json.dumps(event) + "\n", encoding="utf-8")
+                    code, out, err = invoke(
+                        ["--db", str(db), "ingest", "codex", "--file", str(path)]
+                    )
+                    self.assertNotIn(str(path), out + err)
+
+                    if label in ("token_info", "token_count"):
+                        self.assertEqual(code, 0)
+                        policy = load_policy(db, "codex", now=NOW)
+                        history = load_history(db, "codex", now=NOW)
+                        self.assertEqual(len(history), 1)
+                        self.assertEqual(policy.source, "codex_token_info")
+                        self.assertEqual(history[0].source, "codex_token_info")
+                        self.assertEqual(
+                            history[0].schema_marker, SOURCE_SCHEMAS["codex_token_info"]
+                        )
+                        self.assertEqual(history[0].weekly_used, 18.0)
+                        self.assertEqual(history[0].observed_at, observed)
+                        self.assertIsNone(history[0].short_used)
+                        self.assertIsNone(history[0].short_reset_at)
+                        self.assertIsNone(policy.short_used)
+                        self.assertLessEqual(MODE_RANK[policy.mode], MODE_RANK["Normal"])
+                        self.assertNotIn(str(path).encode(), db.read_bytes())
+                    else:
+                        self.assertEqual(code, 2)
+                        if label == "unsupported":
+                            self.assertIn("no supported Codex rate-limit event was found", err)
+                        else:
+                            self.assertIn("ambiguous", err)
+                        self.assertEqual(load_history(db, "codex", now=NOW), [])
 
     def test_codex_reader_skips_partial_and_oversize_lines_and_refuses_unknown_shape(self):
         with tempfile.TemporaryDirectory() as temp:
