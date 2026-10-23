@@ -1,0 +1,64 @@
+name: Feature request
+description: Suggest a focused improvement with a synthetic example.
+title: "[Feature]: "
+labels:
+  - enhancement
+body:
+  - type: markdown
+    attributes:
+      value: >-
+        Do not include raw private logs or prompts, credentials, keys, account
+        details, or private machine paths. Use invented readings and synthetic
+        inputs only.
+  - type: input
+    id: version
+    attributes:
+      label: Version or commit
+      description: Give the release or commit identifier, if known.
+      placeholder: "e.g. 0.1.0"
+    validations:
+      required: false
+  - type: input
+    id: operating-system
+    attributes:
+      label: Operating system
+      description: Include version or architecture if relevant; do not include a private device name.
+      placeholder: "e.g. Windows 11, Ubuntu 24.04"
+    validations:
+      required: false
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or use case
+      description: Describe the task and who encounters it without sharing private data.
+    validations:
+      required: true
+  - type: textarea
+    id: expected-behavior
+    attributes:
+      label: Expected behavior
+      description: Describe a small, reviewable outcome.
+    validations:
+      required: true
+  - type: textarea
+    id: current-behavior
+    attributes:
+      label: Current behavior
+      description: Describe what happens today, if applicable. Do not include private logs or prompts.
+    validations:
+      required: false
+  - type: textarea
+    id: synthetic-example
+    attributes:
+      label: Synthetic example
+      description: Show invented inputs and the expected result, if applicable.
+      placeholder: Use fabricated values only.
+    validations:
+      required: false
+  - type: textarea
+    id: constraints
+    attributes:
+      label: Constraints
+      description: Note compatibility, privacy, or advisory-boundary constraints. Do not provide credentials or account details.
+    validations:
+      required: false

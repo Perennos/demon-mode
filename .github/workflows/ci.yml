@@ -1,0 +1,79 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test-and-package:
+    name: ${{ matrix.os }} / Python ${{ matrix.python-version }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python-version: ["3.10", "3.14"]
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install pinned build tools
+        run: python -m pip install --disable-pip-version-check --no-deps --index-url https://pypi.org/simple setuptools==84.1.0 wheel==0.48.0 packaging==26.3
+
+      - name: Run synthetic source tests
+        run: python -m unittest discover -s tests -v
+
+      - name: Build wheel and source distribution
+        run: python -I -B -c 'import setuptools.build_meta as b; b.build_sdist("dist"); b.build_wheel("dist")'
+
+      - name: Install wheel in a clean temporary environment outside the checkout
+        shell: python
+        run: |
+          import os
+          import pathlib
+          import subprocess
+          import tempfile
+          import venv
+
+          wheel = next(pathlib.Path("dist").glob("*.whl")).resolve(strict=True)
+          clean_env = os.environ.copy()
+          for key in ("PYTHONPATH", "PYTHONHOME", "PYTHONUSERBASE"):
+              clean_env.pop(key, None)
+          clean_env["PYTHONNOUSERSITE"] = "1"
+
+          with tempfile.TemporaryDirectory(prefix="demon-ci-smoke-") as temp:
+              root = pathlib.Path(temp)
+              environment = root / "venv"
+              venv.EnvBuilder(with_pip=True, system_site_packages=False).create(environment)
+              scripts = environment / ("Scripts" if os.name == "nt" else "bin")
+              interpreter = scripts / ("python.exe" if os.name == "nt" else "python")
+              subprocess.run(
+                  [
+                      str(interpreter),
+                      "-m",
+                      "pip",
+                      "install",
+                      "--isolated",
+                      "--no-index",
+                      "--no-deps",
+                      str(wheel),
+                  ],
+                  cwd=root,
+                  env=clean_env,
+                  check=True,
+              )
+              suffix = ".exe" if os.name == "nt" else ""
+              for command in ("demon", "demon-mode"):
+                  subprocess.run(
+                      [str(scripts / (command + suffix)), "--help"],
+                      cwd=root,
+                      env=clean_env,
+                      check=True,
+                  )

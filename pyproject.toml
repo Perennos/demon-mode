@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools==84.1.0", "wheel==0.48.0", "packaging==26.3"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "perennos-demon-mode"
+version = "0.1.0"
+description = "A local, advisory resource policy for bounded AI work."
+requires-python = ">=3.10"
+license = "Apache-2.0"
+license-files = ["LICENSE", "NOTICE"]
+dependencies = []
+
+[project.scripts]
+demon = "demon_mode.__main__:main"
+demon-mode = "demon_mode.__main__:main"
+
+[tool.setuptools]
+packages = ["demon_mode"]

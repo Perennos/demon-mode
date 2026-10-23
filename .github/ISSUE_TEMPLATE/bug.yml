@@ -1,0 +1,50 @@
+name: Bug report
+description: Report a reproducible issue using synthetic inputs.
+title: "[Bug]: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: >-
+        Do not include raw private logs or prompts, credentials, keys, account
+        details, or private machine paths. Use invented readings and synthetic
+        inputs only.
+  - type: input
+    id: version
+    attributes:
+      label: Version or commit
+      description: Give the release or commit identifier, if known.
+      placeholder: "e.g. 0.1.0"
+    validations:
+      required: false
+  - type: input
+    id: operating-system
+    attributes:
+      label: Operating system
+      description: Include version or architecture if relevant; do not include a private device name.
+      placeholder: "e.g. Windows 11, Ubuntu 24.04"
+    validations:
+      required: true
+  - type: textarea
+    id: synthetic-inputs
+    attributes:
+      label: Synthetic inputs
+      description: Provide invented readings or a minimal synthetic example that reproduces the issue.
+      placeholder: Use fabricated values only.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected result
+      description: What should happen for those synthetic inputs?
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual result
+      description: What happened? Keep the report free of private logs, prompts, credentials, keys, and account details.
+    validations:
+      required: true

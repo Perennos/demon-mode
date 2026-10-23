@@ -1,0 +1,17 @@
+include LICENSE
+include NOTICE
+include README.md
+include pyproject.toml
+include MANIFEST.in
+include demon_mode/__init__.py
+include demon_mode/__main__.py
+include demon_mode/governor.py
+include demon_mode/store.py
+
+prune .github
+prune brand
+prune build
+prune dist
+prune tests
+prune __pycache__
+global-exclude *.py[cod] *.sqlite* *.db* *.json *.jsonl *.log *.local.toml .env .env.*
