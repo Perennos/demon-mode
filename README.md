@@ -13,9 +13,11 @@ A use-it-or-lose-it governor for Claude Code and Codex subscriptions.</p>
 
 > The countdown and percentage shown inside the hero are illustrative gauge state, not a claim about the tool.
 
-<code>demon-mode</code> is a stdlib-first Python CLI and per-turn hook governor for Claude Code and Codex subscription allowances. Subscription windows reset on a clock: move too fast early and you hit a wall mid-task; move too cautiously and included capacity expires unused. <code>demon-mode</code> estimates your remaining pace before reset—using your own local session logs, official CLI outputs, or a manual ledger fallback—and injects advisory working-mode instructions (<code>Austere</code>, <code>Lean</code>, <code>Normal</code>, <code>Rich</code>, or <code>DEMON</code>) at each turn. When allowance is tight, it advises narrower, conservative steps; when reset is near and capacity remains, it directs spare allowance toward pre-authorised backlog and review tasks.
+Your plan's allowance resets on a clock: a weekly window, plus a five-hour one if your plan has it. Demon Mode reads your own readings (percent used, reset time), works out your pace against that clock, and, through an optional hook, tells your agent on every prompt how wide to work: <code>Austere</code>, <code>Lean</code>, <code>Normal</code>, <code>Rich</code> or <code>DEMON</code>.
 
-The mode text is advice for work already authorized. It does not grant permissions, change client settings, override higher-priority instructions, start background work, or authorize new tasks.
+Why: allowance you don't use is gone at reset, and allowance you burn early leaves you at a wall mid-task. Tight means narrower, careful steps. Reset within a day and headroom left means <code>DEMON</code>: go wide on the work you already approved, with more helpers and deeper review. Yes, the name is dramatic. Under the hood it is mostly arithmetic and a SQLite file.
+
+Hard lines: it never bypasses a limit, never scrapes an account, never buys extra usage and never invents work. [Full list below.](#what-it-will-not-do)
 
 ## Install
 
@@ -41,6 +43,62 @@ python3 -m venv .venv
 ~~~
 
 The install smoke command is <code>demon --help</code> when the virtual environment is active. Commands below use that environment's <code>demon</code> executable. Activate it with <code>. .venv/bin/activate</code> on macOS/Linux or <code>.\.venv\Scripts\Activate.ps1</code> in Windows PowerShell. At run time, the CLI has no third-party dependencies, model calls, or network service.
+
+## First five minutes
+
+Demon Mode cannot look up your usage. The numbers come from you: typed in, piped in, or read from a local file you point it at. Step 1 needs your own reading, and step 2 has nothing to show without it. Steps 3 and 4 do not read your numbers.
+
+**1. Put a reading in.** A reading is the weekly percent used and the weekly reset time. Add the five-hour pair if you have it. Pick one route.
+
+By hand, for Claude Code or Codex. Everything in angle brackets is a placeholder: replace it with your real value. Times are ISO 8601 with a UTC offset; a trailing <code>Z</code> works.
+
+~~~sh
+demon record --provider claude --weekly <percent-used> --resets '<weekly-reset-time>' --five-hour <five-hour-percent-used> --five-hour-resets '<five-hour-reset-time>'
+~~~
+
+Use <code>--provider codex</code> for Codex. The reading is stamped with the current time unless you pass <code>--at '&lt;time-you-read-it&gt;'</code>. The two five-hour flags go together; drop both if you have no five-hour reading.
+
+From Claude status-line JSON piped to standard input. It needs <code>rate_limits.seven_day</code> with <code>used_percentage</code> and <code>resets_at</code>; <code>five_hour</code> is optional. Without the weekly block the command stops with an error and records nothing.
+
+~~~sh
+demon ingest claude-statusline --stdin
+~~~
+
+The reading is stamped with the moment you run it, so pipe in live JSON, not an old copy.
+
+From Codex, pointing at one JSONL file that you choose. It looks near the end of the file for the newest rate-limit event and uses that event's own timestamp.
+
+~~~sh
+demon ingest codex --file <path-to-codex-jsonl>
+~~~
+
+Each of these prints a status line when it finishes.
+
+**2. Check the mode.**
+
+~~~sh
+demon status --provider claude
+~~~
+
+One line: the mode, a ten-slot gauge of weekly use, weekly and estimated percent, the headroom ratio and the reset time. Add <code>--json</code> for the reason and freshness behind the mode. An empty ledger reads <code>LEAN</code> with <code>unknown</code> for every number.
+
+A stale reading caps the mode. Past one hour the report asks for a refresh and the mode tops out at <code>Normal</code>; a missing five-hour reading does the same. Past six hours the weekly reading counts as missing and <code>Lean</code> is the best you get.
+
+**3. Get the hook template.**
+
+~~~sh
+demon hook-config --client claude
+~~~
+
+It prints a small JSON template: the <code>UserPromptSubmit</code> event and the <code>command</code> to run. It does not edit your settings and registers nothing. You merge that command into your client's existing hook list yourself, keeping every hook you already have. Use <code>--client codex</code> for Codex. The command points at the Python that ran <code>hook-config</code>, so run it from the environment you installed into. It reads the default ledger; if you recorded with <code>--db</code>, put the same <code>--db &lt;path&gt;</code> before <code>hook</code> in the command. The hook section below has the rest.
+
+**4. Preview the gauge.**
+
+~~~sh
+demon preview
+~~~
+
+A three-frame gauge animation that plays for three seconds by default (<code>--seconds 1</code> or <code>2</code> for shorter). It plays fixed frames and does not read your ledger, so it is for looks only. With <code>--plain</code>, with <code>NO_COLOR</code> set, or when output is not a terminal, you get one static line instead.
 
 ## Start with a manual ledger
 
@@ -75,6 +133,18 @@ Optional ingestion is limited to supported provider output: Claude status-line J
 A short-window reading at 95% used or higher triggers the hard brake and <code>Austere</code>. Stale or missing input is not treated as current. Incomplete history is handled conservatively and caps the mode at <code>Lean</code> until coverage is refreshed. When dense history has to be reduced to fit the finite retention window, the report exposes a recent pace upper bound instead of implying that the retained samples are a complete timeline.
 
 The mode is an instruction, not an enforcement boundary. Provider tools and client permissions remain under the user's control.
+
+## What it will not do
+
+Demon Mode is a gauge with opinions, not a bouncer. It does not:
+
+- bypass a limit or grant permissions. The mode text is advice for work you already authorized.
+- change client settings or override higher-priority instructions. <code>hook-config</code> prints a template and stops there.
+- start background work, authorize new tasks, or invent work.
+- buy or authorize extra usage.
+- scrape accounts, read your prompts, take credentials, or make model or network calls. Input is status-line JSON you pipe in, one Codex JSONL file you name, or a reading you type.
+- count token totals or cost totals as subscription allowance. Token and cost fields are ignored.
+- treat old or missing readings as current. Stale input lowers the ceiling, and a reading dated more than a minute in the future is rejected.
 
 ## Optional hook output
 
