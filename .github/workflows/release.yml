@@ -1,0 +1,195 @@
+name: Source release archives
+
+on:
+  pull_request:
+  push:
+    tags:
+      - v0.1.0
+
+permissions:
+  contents: read
+
+jobs:
+  validate-source-archives:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          persist-credentials: false
+
+      - name: Create and verify source archives
+        shell: bash
+        run: |
+          set -euo pipefail
+          prefix="demon-mode-0.1.0"
+          out="$RUNNER_TEMP/$prefix"
+          mkdir -p "$out"
+          git archive --format=tar --prefix="$prefix/" HEAD | gzip -n > "$out/$prefix.tar.gz"
+          git archive --format=zip --prefix="$prefix/" HEAD > "$out/$prefix.zip"
+
+          tar_members="$out/tar.members"
+          zip_members="$out/zip.members"
+          tar -tzf "$out/$prefix.tar.gz" > "$tar_members"
+          unzip -tqq "$out/$prefix.zip"
+          unzip -Z1 "$out/$prefix.zip" > "$zip_members"
+          LC_ALL=C awk -v root="$prefix/" '$0 != root && $0 !~ /\/$/' "$tar_members" | LC_ALL=C sort > "$out/tar.files"
+          LC_ALL=C awk -v root="$prefix/" '$0 != root && $0 !~ /\/$/' "$zip_members" | LC_ALL=C sort > "$out/zip.files"
+          diff -u "$out/tar.files" "$out/zip.files"
+
+          for members in "$tar_members" "$zip_members"; do
+            while IFS= read -r member; do
+              case "$member" in
+                "$prefix/"|"$prefix/"*) ;;
+                *) printf 'Archive member outside release prefix: %s\n' "$member" >&2; exit 1 ;;
+              esac
+              case "/$member/" in
+                *"/../"*) printf 'Unsafe archive member path\n' >&2; exit 1 ;;
+              esac
+              if printf '%s\n' "$member" | grep -Eiq '(^|/)\.git(/|$)|(^|/)\.env([^/]*|/)|(^|/)[^/]*\.(sqlite3?|db)([-.][^/]*)?(/|$)|(^|/)[^/]*\.log([^/]*|$)|(^|/)local[-_]state(/|$)'; then
+                printf 'Forbidden archive member: %s\n' "$member" >&2
+                exit 1
+              fi
+            done < "$members"
+          done
+
+          for required in \
+            "$prefix/LICENSE" \
+            "$prefix/NOTICE" \
+            "$prefix/README.md" \
+            "$prefix/pyproject.toml" \
+            "$prefix/demon_mode/__init__.py" \
+            "$prefix/demon_mode/__main__.py" \
+            "$prefix/demon_mode/governor.py" \
+            "$prefix/demon_mode/store.py" \
+            "$prefix/brand/licenses/BarlowCondensed-OFL.txt" \
+            "$prefix/brand/licenses/IBMPlexMono-OFL.txt" \
+            "$prefix/brand/licenses/MartianMono-OFL.txt"; do
+            grep -Fxq "$required" "$tar_members" || {
+              printf 'Missing required member: %s\n' "$required" >&2
+              exit 1
+            }
+          done
+
+          tar -xOzf "$out/$prefix.tar.gz" "$prefix/pyproject.toml" > "$out/tar-pyproject.toml"
+          unzip -p "$out/$prefix.zip" "$prefix/pyproject.toml" > "$out/zip-pyproject.toml"
+          for manifest in "$out/tar-pyproject.toml" "$out/zip-pyproject.toml"; do
+            grep -Fxq 'version = "0.1.0"' "$manifest" || {
+              printf 'Expected version marker missing from %s\n' "$manifest" >&2
+              exit 1
+            }
+          done
+
+          (
+            cd "$out"
+            sha256sum "$prefix.tar.gz" "$prefix.zip" > SHA256SUMS
+            sha256sum --check SHA256SUMS
+            cat SHA256SUMS >> "$GITHUB_STEP_SUMMARY"
+          )
+
+  draft-v0-1-0:
+    if: github.event_name == 'push' && github.repository == 'Perennos/demon-mode' && github.ref == 'refs/tags/v0.1.0'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: ${{ github.ref }}
+          persist-credentials: false
+
+      - name: Create and verify source archives
+        shell: bash
+        run: |
+          set -euo pipefail
+          prefix="demon-mode-0.1.0"
+          out="$RUNNER_TEMP/$prefix"
+          mkdir -p "$out"
+          git archive --format=tar --prefix="$prefix/" HEAD | gzip -n > "$out/$prefix.tar.gz"
+          git archive --format=zip --prefix="$prefix/" HEAD > "$out/$prefix.zip"
+
+          tar_members="$out/tar.members"
+          zip_members="$out/zip.members"
+          tar -tzf "$out/$prefix.tar.gz" > "$tar_members"
+          unzip -tqq "$out/$prefix.zip"
+          unzip -Z1 "$out/$prefix.zip" > "$zip_members"
+          LC_ALL=C awk -v root="$prefix/" '$0 != root && $0 !~ /\/$/' "$tar_members" | LC_ALL=C sort > "$out/tar.files"
+          LC_ALL=C awk -v root="$prefix/" '$0 != root && $0 !~ /\/$/' "$zip_members" | LC_ALL=C sort > "$out/zip.files"
+          diff -u "$out/tar.files" "$out/zip.files"
+
+          for members in "$tar_members" "$zip_members"; do
+            while IFS= read -r member; do
+              case "$member" in
+                "$prefix/"|"$prefix/"*) ;;
+                *) printf 'Archive member outside release prefix: %s\n' "$member" >&2; exit 1 ;;
+              esac
+              case "/$member/" in
+                *"/../"*) printf 'Unsafe archive member path\n' >&2; exit 1 ;;
+              esac
+              if printf '%s\n' "$member" | grep -Eiq '(^|/)\.git(/|$)|(^|/)\.env([^/]*|/)|(^|/)[^/]*\.(sqlite3?|db)([-.][^/]*)?(/|$)|(^|/)[^/]*\.log([^/]*|$)|(^|/)local[-_]state(/|$)'; then
+                printf 'Forbidden archive member: %s\n' "$member" >&2
+                exit 1
+              fi
+            done < "$members"
+          done
+
+          for required in \
+            "$prefix/LICENSE" \
+            "$prefix/NOTICE" \
+            "$prefix/README.md" \
+            "$prefix/pyproject.toml" \
+            "$prefix/demon_mode/__init__.py" \
+            "$prefix/demon_mode/__main__.py" \
+            "$prefix/demon_mode/governor.py" \
+            "$prefix/demon_mode/store.py" \
+            "$prefix/brand/licenses/BarlowCondensed-OFL.txt" \
+            "$prefix/brand/licenses/IBMPlexMono-OFL.txt" \
+            "$prefix/brand/licenses/MartianMono-OFL.txt"; do
+            grep -Fxq "$required" "$tar_members" || {
+              printf 'Missing required member: %s\n' "$required" >&2
+              exit 1
+            }
+          done
+
+          tar -xOzf "$out/$prefix.tar.gz" "$prefix/pyproject.toml" > "$out/tar-pyproject.toml"
+          unzip -p "$out/$prefix.zip" "$prefix/pyproject.toml" > "$out/zip-pyproject.toml"
+          for manifest in "$out/tar-pyproject.toml" "$out/zip-pyproject.toml"; do
+            grep -Fxq 'version = "0.1.0"' "$manifest" || {
+              printf 'Expected version marker missing from %s\n' "$manifest" >&2
+              exit 1
+            }
+          done
+
+          (
+            cd "$out"
+            sha256sum "$prefix.tar.gz" "$prefix.zip" > SHA256SUMS
+            sha256sum --check SHA256SUMS
+            cat SHA256SUMS >> "$GITHUB_STEP_SUMMARY"
+          )
+
+      - name: Create draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REPOSITORY" = "Perennos/demon-mode"
+          test "$GITHUB_REF" = "refs/tags/v0.1.0"
+          git fetch --quiet --no-tags --depth=1 origin main
+          test "$(git rev-parse HEAD)" = "$(git rev-parse FETCH_HEAD)"
+          if gh release view v0.1.0 >/dev/null 2>&1; then
+            printf '%s\n' 'Refusing to overwrite the existing v0.1.0 release.' >&2
+            exit 1
+          fi
+          prefix="demon-mode-0.1.0"
+          gh release create v0.1.0 \
+            "$RUNNER_TEMP/$prefix/$prefix.tar.gz" \
+            "$RUNNER_TEMP/$prefix/$prefix.zip" \
+            "$RUNNER_TEMP/$prefix/SHA256SUMS" \
+            --verify-tag \
+            --draft \
+            --latest=false \
+            --title 'demon-mode v0.1.0 source archives' \
+            --notes 'Source archives for the reviewed v0.1.0 tag. SHA256SUMS contains hashes for both archives.'
