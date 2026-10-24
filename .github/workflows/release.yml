@@ -48,7 +48,7 @@ jobs:
               case "/$member/" in
                 *"/../"*) printf 'Unsafe archive member path\n' >&2; exit 1 ;;
               esac
-              if printf '%s\n' "$member" | grep -Eiq '(^|/)\.git(/|$)|(^|/)\.env([^/]*|/)|(^|/)[^/]*\.(sqlite3?|db)([-.][^/]*)?(/|$)|(^|/)[^/]*\.log([^/]*|$)|(^|/)local[-_]state(/|$)'; then
+              if printf '%s\n' "$member" | grep -Eiq '(^|/)(\.git|\.demon-mode|\.env[^/]*|[^/]*\.local\.toml|local[-_]state)(/|$)|(^|/)[^/]*\.(sqlite3?|db|jsonl?)([-.][^/]*)?(/|$)|(^|/)[^/]*\.log([^/]*|$)'; then
                 printf 'Forbidden archive member: %s\n' "$member" >&2
                 exit 1
               fi
@@ -128,7 +128,7 @@ jobs:
               case "/$member/" in
                 *"/../"*) printf 'Unsafe archive member path\n' >&2; exit 1 ;;
               esac
-              if printf '%s\n' "$member" | grep -Eiq '(^|/)\.git(/|$)|(^|/)\.env([^/]*|/)|(^|/)[^/]*\.(sqlite3?|db)([-.][^/]*)?(/|$)|(^|/)[^/]*\.log([^/]*|$)|(^|/)local[-_]state(/|$)'; then
+              if printf '%s\n' "$member" | grep -Eiq '(^|/)(\.git|\.demon-mode|\.env[^/]*|[^/]*\.local\.toml|local[-_]state)(/|$)|(^|/)[^/]*\.(sqlite3?|db|jsonl?)([-.][^/]*)?(/|$)|(^|/)[^/]*\.log([^/]*|$)'; then
                 printf 'Forbidden archive member: %s\n' "$member" >&2
                 exit 1
               fi
