@@ -4,12 +4,17 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "perennos-demon-mode"
-version = "0.1.0"
+version = "0.1.1"
 description = "A local, advisory resource policy for bounded AI work."
+readme = "README.md"
 requires-python = ">=3.10"
 license = "Apache-2.0"
 license-files = ["LICENSE", "NOTICE"]
 dependencies = []
+
+[project.urls]
+Homepage = "https://github.com/Perennos/demon-mode"
+Issues = "https://github.com/Perennos/demon-mode/issues"
 
 [project.scripts]
 demon = "demon_mode.__main__:main"

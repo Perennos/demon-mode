@@ -64,6 +64,12 @@ Optional ingestion is limited to supported provider output: Claude status-line J
 
 ## Working modes and limits
 
+Run `demon doctor --provider codex` for local setup diagnostics (`--json` for
+structured output). `demon context --provider codex` prints advice you can paste
+into hosts without local hooks. `demon --version` identifies the installed
+version. See [integration and troubleshooting](docs/compatibility.md) for source
+formats, Windows behavior, and verification boundaries.
+
 | Mode | Advisory working envelope |
 | --- | --- |
 | <code>Austere</code> | One bounded work unit at a time; no optional helpers. Reuse evidence and minimize exploratory branches while retaining required correctness, security, and accessibility checks. |
@@ -84,6 +90,20 @@ The mode is an instruction, not an enforcement boundary. Provider tools and clie
 demon hook-config --client codex
 demon hook --client codex
 ~~~
+
+`hook-config --client codex --format native` prints an additive native object.
+Custom `--db` paths are preserved as absolute paths. Add
+`--codex-file '/absolute/path/to/selected-session.jsonl'` to `hook-config` for an
+opt-in refresh before each turn; failed refreshes emit conservative advice.
+Claude templates use current executable/argument-array form. Windows Codex
+templates use literal PowerShell arguments and include a decoded script in the
+default template for review. Neither changes settings automatically.
+
+`ingest codex-app-server --file ./rate-limits.json --at '<original-observed-UTC>'`
+accepts a captured official rate-limit response. Original observation time is
+required; other metered buckets and unsupported durations are not mixed into
+Codex allowance. Read [compatibility](docs/compatibility.md) before connecting
+sources.
 
 <code>hook</code> emits compact JSON containing advisory <code>additionalContext</code>; it does not read prompt text from standard input. Confirm that the native client recognizes the output before relying on hook delivery. The commands above are local output examples, not evidence of a completed native-host integration.
 

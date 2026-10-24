@@ -8,14 +8,19 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: demon-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   test-and-package:
     name: ${{ matrix.os }} / Python ${{ matrix.python-version }}
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest]
+        os: [ubuntu-latest, windows-latest, macos-latest]
         python-version: ["3.10", "3.14"]
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
@@ -34,46 +39,4 @@ jobs:
         run: python -I -B -c 'import setuptools.build_meta as b; b.build_sdist("dist"); b.build_wheel("dist")'
 
       - name: Install wheel in a clean temporary environment outside the checkout
-        shell: python
-        run: |
-          import os
-          import pathlib
-          import subprocess
-          import tempfile
-          import venv
-
-          wheel = next(pathlib.Path("dist").glob("*.whl")).resolve(strict=True)
-          clean_env = os.environ.copy()
-          for key in ("PYTHONPATH", "PYTHONHOME", "PYTHONUSERBASE"):
-              clean_env.pop(key, None)
-          clean_env["PYTHONNOUSERSITE"] = "1"
-
-          with tempfile.TemporaryDirectory(prefix="demon-ci-smoke-") as temp:
-              root = pathlib.Path(temp)
-              environment = root / "venv"
-              venv.EnvBuilder(with_pip=True, system_site_packages=False).create(environment)
-              scripts = environment / ("Scripts" if os.name == "nt" else "bin")
-              interpreter = scripts / ("python.exe" if os.name == "nt" else "python")
-              subprocess.run(
-                  [
-                      str(interpreter),
-                      "-m",
-                      "pip",
-                      "install",
-                      "--isolated",
-                      "--no-index",
-                      "--no-deps",
-                      str(wheel),
-                  ],
-                  cwd=root,
-                  env=clean_env,
-                  check=True,
-              )
-              suffix = ".exe" if os.name == "nt" else ""
-              for command in ("demon", "demon-mode"):
-                  subprocess.run(
-                      [str(scripts / (command + suffix)), "--help"],
-                      cwd=root,
-                      env=clean_env,
-                      check=True,
-                  )
+        run: python scripts/smoke_installed.py

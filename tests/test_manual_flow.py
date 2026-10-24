@@ -19,7 +19,7 @@ NOW = datetime(2026, 10, 23, 12, 0, tzinfo=UTC)
 class ManualFlowTests(unittest.TestCase):
     def test_manual_record_evaluates_to_mode_specific_hook_context(self):
         with tempfile.TemporaryDirectory() as temp:
-            database = Path(temp) / "state.sqlite3"
+            database = Path(temp).resolve() / "state.sqlite3"
             now = datetime.now(UTC).replace(microsecond=0)
             reading = {
                 "provider": "claude",
@@ -42,7 +42,7 @@ class ManualFlowTests(unittest.TestCase):
             native = payload["hookSpecificOutput"]
             context = native["additionalContext"]
 
-            self.assertEqual(__version__, "0.1.0")
+            self.assertEqual(__version__, "0.1.1")
             self.assertEqual(policy.mode, "DEMON")
             self.assertEqual(native["hookEventName"], "UserPromptSubmit")
             self.assertIn(MODE_POLICY["DEMON"], context)
@@ -51,13 +51,13 @@ class ManualFlowTests(unittest.TestCase):
 
     def test_missing_readings_stay_conservative(self):
         with tempfile.TemporaryDirectory() as temp:
-            policy = load_policy(Path(temp) / "empty.sqlite3", "codex", now=NOW)
+            policy = load_policy(Path(temp).resolve() / "empty.sqlite3", "codex", now=NOW)
         self.assertEqual(policy.mode, "Lean")
         self.assertTrue(policy.refresh_required)
 
     def test_measured_short_window_hard_brake_caps_mode(self):
         with tempfile.TemporaryDirectory() as temp:
-            database = Path(temp) / "state.sqlite3"
+            database = Path(temp).resolve() / "state.sqlite3"
             record_manual(
                 database,
                 provider="codex",

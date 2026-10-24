@@ -7,6 +7,7 @@ include demon_mode/__init__.py
 include demon_mode/__main__.py
 include demon_mode/governor.py
 include demon_mode/store.py
+include demon_mode/sources.py
 
 prune .github
 prune brand
