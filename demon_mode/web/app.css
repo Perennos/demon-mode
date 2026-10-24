@@ -117,7 +117,7 @@ h2 + * { margin-top: var(--space-lg); }
 [data-mode="rich"] { --needle: 24deg; }
 [data-mode="demon"] { --needle: 56deg; }
 
-.mark { position: relative; max-width: 28rem; }
+.mark { position: relative; max-width: min(28rem, 100%); }
 .mark::before {
   content: "";
   position: absolute;
@@ -179,7 +179,10 @@ dd { margin: 0; min-width: 0; }
 
 /* forms */
 .form { display: grid; gap: var(--space-lg); }
-.fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(13rem, 100%), 1fr)); gap: var(--space-lg); }
+.fields { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-lg); }
+@media (min-width: 560px) {
+  .fields { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
 .field { display: grid; gap: var(--space-xs); min-width: 0; }
 label { font: var(--text-sm)/1.2 var(--font-mono); letter-spacing: .06em; color: var(--dim); }
 .hint { margin: 0; max-width: 60ch; font-size: var(--text-base); line-height: 1.5; }
