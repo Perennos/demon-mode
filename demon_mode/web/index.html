@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark light">
+<meta name="x-token" content="__TOKEN__">
+<title>Perennos DEMON MODE</title>
+<link rel="icon" href="/brand/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/app.css">
+<script src="/app.js" defer></script>
+</head>
+<body>
+<div class="hud" id="hud" data-mode="lean">
+  <header class="gauge">
+    <h1 class="brand">Perennos DEMON MODE</h1>
+    <div class="mark" id="mark" aria-hidden="true"></div>
+  </header>
+
+  <main class="panel">
+    <noscript><p class="error">This page needs JavaScript to show your readings.</p></noscript>
+
+    <div class="switch" role="group" aria-label="Provider">
+      <button type="button" data-provider="claude" aria-pressed="true">Claude</button>
+      <button type="button" data-provider="codex" aria-pressed="false">Codex</button>
+    </div>
+
+    <p class="mode" id="mode" role="status">&mdash;</p>
+    <p class="empty" id="empty" hidden>No reading yet. Record one below.</p>
+
+    <dl class="readouts">
+      <div>
+        <dt>RESET IN</dt>
+        <dd class="value" id="reset">&mdash;</dd>
+        <dd class="sub" id="reset-at"></dd>
+      </div>
+      <div>
+        <dt>LEFT %</dt>
+        <dd class="value" id="left">&mdash;</dd>
+        <dd class="sub" id="used"></dd>
+      </div>
+      <div>
+        <dt>5-HOUR %</dt>
+        <dd class="value" id="short">&mdash;</dd>
+        <dd class="sub" id="short-at"></dd>
+      </div>
+    </dl>
+    <p class="fresh" id="fresh">no reading yet</p>
+    <p class="error" id="hud-error" aria-live="polite"></p>
+
+    <section>
+      <h2>Record a reading</h2>
+      <form id="record" class="form">
+        <div class="fields">
+          <div class="field">
+            <label for="r-provider">Provider</label>
+            <select id="r-provider" name="provider">
+              <option value="claude">Claude</option>
+              <option value="codex">Codex</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="r-weekly">Weekly % used</label>
+            <input id="r-weekly" name="weekly" type="number" min="0" max="100" step="any" inputmode="decimal" required>
+          </div>
+          <div class="field">
+            <label for="r-resets">Weekly reset</label>
+            <input id="r-resets" name="resets" type="datetime-local" required>
+          </div>
+          <div class="field">
+            <label for="r-five">Five-hour % used (optional)</label>
+            <input id="r-five" name="five_hour" type="number" min="0" max="100" step="any" inputmode="decimal">
+          </div>
+          <div class="field">
+            <label for="r-five-resets">Five-hour reset (optional)</label>
+            <input id="r-five-resets" name="five_hour_resets" type="datetime-local">
+          </div>
+          <div class="field">
+            <label for="r-observed">Observed at (optional)</label>
+            <input id="r-observed" name="observed" type="datetime-local">
+          </div>
+        </div>
+        <p class="hint">Times are your local time and are sent as UTC. Give the five-hour percent and its reset together, or neither. Leave observed-at blank to stamp the reading now.</p>
+        <div class="row">
+          <button type="submit" class="primary">Record reading</button>
+        </div>
+        <p class="error" aria-live="polite"></p>
+      </form>
+    </section>
+
+    <section>
+      <h2>Paste status-line JSON</h2>
+      <form id="ingest" class="form">
+        <div class="field">
+          <label for="i-text">Claude status-line JSON</label>
+          <textarea id="i-text" name="text" rows="6" spellcheck="false" autocomplete="off" required></textarea>
+        </div>
+        <p class="hint">It needs <code>rate_limits.seven_day</code> with <code>used_percentage</code> and <code>resets_at</code>; <code>five_hour</code> is optional. The reading is stamped with the moment you send it, so paste live JSON, not an old copy.</p>
+        <div class="row">
+          <button type="submit" class="primary">Read pasted JSON</button>
+        </div>
+        <p class="error" aria-live="polite"></p>
+      </form>
+    </section>
+
+    <section>
+      <h2>Hook template</h2>
+      <pre id="hook">&mdash;</pre>
+      <p class="hint">A template only: it edits no settings. Merge the command into your client's existing hook list and keep every hook you already have. It reads the default ledger; if you started this page with <code>--db</code>, put the same <code>--db &lt;path&gt;</code> before <code>hook</code> in the command.</p>
+      <div class="row">
+        <button type="button" id="copy">Copy</button>
+        <span class="note" id="copy-note" role="status"></span>
+      </div>
+    </section>
+
+    <p class="local">Local page. Served from 127.0.0.1 on this computer only.</p>
+  </main>
+</div>
+</body>
+</html>

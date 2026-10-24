@@ -11,6 +11,11 @@
 <p align="center"><strong>Burn it before it resets.</strong><br>
 A use-it-or-lose-it governor for Claude Code and Codex subscriptions.</p>
 
+**1.** Double-click <code>install.cmd</code> (macOS/Linux: <code>bash install.sh</code>).<br>
+**2.** Click the Demon Mode shortcut.
+
+The GUI is a local page on 127.0.0.1 only.
+
 > The countdown and percentage shown inside the hero are illustrative gauge state, not a claim about the tool.
 
 Your plan's allowance resets on a clock: a weekly window, plus a five-hour one if your plan has it. Demon Mode reads your own readings (percent used, reset time), works out your pace against that clock, and, through an optional hook, tells your agent on every prompt how wide to work: <code>Austere</code>, <code>Lean</code>, <code>Normal</code>, <code>Rich</code> or <code>DEMON</code>.
@@ -99,6 +104,16 @@ demon preview
 ~~~
 
 A three-frame gauge animation that plays for three seconds by default (<code>--seconds 1</code> or <code>2</code> for shorter). It plays fixed frames and does not read your ledger, so it is for looks only. With <code>--plain</code>, with <code>NO_COLOR</code> set, or when output is not a terminal, you get one static line instead.
+
+## GUI
+
+<code>demon gui</code> opens a local page on the same ledger the command line uses: the mode word and the gauge needle, the time to the weekly reset, the percent left, the five-hour percent, and how old the last reading is. You can record a reading, paste Claude status-line JSON, and copy the hook template. It calls the same code as <code>record</code>, <code>ingest claude-statusline</code>, <code>status</code> and <code>hook-config</code>, so the numbers and the error messages match.
+
+~~~sh
+demon gui --no-browser
+~~~
+
+That prints the address instead of opening a browser; <code>--port &lt;number&gt;</code> picks the port. The page is served from 127.0.0.1 only, loads nothing from the internet, refuses requests with a foreign Host or Origin, and needs a per-run token to save a reading. Press Ctrl+C in the terminal to stop it.
 
 ## Start with a manual ledger
 

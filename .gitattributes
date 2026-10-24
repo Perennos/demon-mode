@@ -1,2 +1,4 @@
 * text=auto eol=lf
 brand/** -text
+demon_mode/brand/** -text
+*.cmd text eol=crlf
