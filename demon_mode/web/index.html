@@ -11,9 +11,13 @@
 <script src="/app.js" defer></script>
 </head>
 <body>
+<p class="bye" id="bye" hidden>Demon Mode stopped. You can close this tab.</p>
 <div class="hud" id="hud" data-mode="lean">
   <header class="gauge">
-    <h1 class="brand">Perennos DEMON MODE</h1>
+    <div class="head">
+      <h1 class="brand">Perennos DEMON MODE</h1>
+      <button type="button" id="quit">Quit</button>
+    </div>
     <div class="mark" id="mark" aria-hidden="true"></div>
   </header>
 

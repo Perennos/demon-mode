@@ -81,7 +81,7 @@ def _parser() -> argparse.ArgumentParser:
     preview.add_argument("--plain", action="store_true")
 
     gui = commands.add_parser("gui", help="serve a local page on 127.0.0.1 and open it in a browser")
-    gui.add_argument("--port", type=_port, default=0, help="port to listen on; default picks a free one")
+    gui.add_argument("--port", type=_port, default=47823, help="port to listen on (default 47823; 0 picks a free one)")
     gui.add_argument("--no-browser", action="store_true", help="print the address and do not open a browser")
     return parser
 

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import errno
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from importlib import resources
@@ -10,8 +11,11 @@ import io
 import json
 import secrets
 import sqlite3
+import threading
+import time
 from typing import Optional
 from urllib.parse import urlsplit
+from urllib.request import urlopen
 import webbrowser
 
 from .__main__ import (
@@ -25,9 +29,15 @@ from .__main__ import (
 from .governor import PROVIDERS
 from .store import load_policy, record_observation
 
+DEFAULT_PORT = 47823
+_IDLE_SECONDS = 30 * 60
 _MAX_BODY_BYTES = 65536
 _SECURITY_HEADERS = (
-    ("Content-Security-Policy", "default-src 'self'; img-src 'self' data:"),
+    (
+        "Content-Security-Policy",
+        "default-src 'self'; img-src 'self' data:; frame-ancestors 'none'; form-action 'self'; base-uri 'none'",
+    ),
+    ("X-Frame-Options", "DENY"),
     ("X-Content-Type-Options", "nosniff"),
     ("Referrer-Policy", "no-referrer"),
     ("Cache-Control", "no-store"),
@@ -92,6 +102,7 @@ class _Handler(BaseHTTPRequestHandler):
         super().end_headers()
 
     def parse_request(self) -> bool:
+        self.server.last_request = time.monotonic()
         if not super().parse_request():
             return False
         if self.headers.get("Host", "").lower() not in self.server.hosts:
@@ -111,6 +122,8 @@ class _Handler(BaseHTTPRequestHandler):
 
     def do_GET(self) -> None:
         path = urlsplit(self.path).path
+        if path == "/api/ping":
+            return self._json(HTTPStatus.OK, {"app": "demon-mode"})
         if path == "/api/state":
             return self._json(HTTPStatus.OK, _state(self.server.database))
         asset = _ASSETS.get(path)
@@ -122,8 +135,9 @@ class _Handler(BaseHTTPRequestHandler):
         self._send(HTTPStatus.OK, body, asset[1])
 
     def do_POST(self) -> None:
-        action = _ACTIONS.get(urlsplit(self.path).path)
-        if action is None:
+        path = urlsplit(self.path).path
+        action = _ACTIONS.get(path)
+        if action is None and path != "/api/quit":
             return self.send_error(HTTPStatus.NOT_FOUND)
         origin = self.headers.get("Origin")
         supplied = self.headers.get("X-Token", "").encode("utf-8")
@@ -131,6 +145,10 @@ class _Handler(BaseHTTPRequestHandler):
             supplied, self.server.token.encode("ascii")
         ):
             return self._json(HTTPStatus.FORBIDDEN, {"error": "forbidden"})
+        if path == "/api/quit":
+            self._json(HTTPStatus.OK, {"ok": True})
+            threading.Thread(target=self.server.shutdown, daemon=True).start()
+            return
         try:
             length = int(self.headers.get("Content-Length", ""))
         except ValueError:
@@ -157,19 +175,49 @@ class _Handler(BaseHTTPRequestHandler):
 class GuiServer(ThreadingHTTPServer):
     allow_reuse_address = False  # on Windows SO_REUSEADDR would let another process share the port
 
-    def __init__(self, database: Optional[str], port: int = 0) -> None:
+    def __init__(self, database: Optional[str], port: int = 0, idle_timeout: float = _IDLE_SECONDS) -> None:
+        self._closed = threading.Event()  # before bind: a failed bind calls server_close
         super().__init__(("127.0.0.1", port), _Handler)
         self.database = database
+        self.idle_timeout = idle_timeout
+        self.last_request = time.monotonic()
+        threading.Thread(target=self._watch_idle, daemon=True).start()
         self.token = secrets.token_urlsafe(32)
         names = ("127.0.0.1", "localhost")
         self.hosts = {*names, *(f"{name}:{self.server_port}" for name in names)}
         self.origins = {f"http://{name}:{self.server_port}" for name in names}
+
+    def _watch_idle(self) -> None:
+        while not self._closed.wait(min(1.0, self.idle_timeout / 4)):
+            if time.monotonic() - self.last_request > self.idle_timeout:
+                self.shutdown()
+                return
+
+    def server_close(self) -> None:
+        self._closed.set()
+        super().server_close()
+
+
+def _is_demon_mode(url: str) -> bool:
+    try:
+        with urlopen(url + "api/ping", timeout=2) as response:
+            return json.loads(response.read(1024)).get("app") == "demon-mode"
+    except (OSError, ValueError, AttributeError):
+        return False
 
 
 def serve(database: Optional[str], port: int, open_browser: bool) -> int:
     try:
         server = GuiServer(database, port)
     except OSError as exc:
+        if exc.errno in (errno.EADDRINUSE, 10048):  # 10048: WSAEADDRINUSE
+            url = f"http://127.0.0.1:{port}/"
+            if _is_demon_mode(url):
+                print(f"Demon Mode GUI: {url}", flush=True)
+                if open_browser:
+                    webbrowser.open(url)
+                return 0
+            raise ValueError(f"port {port} is already in use by another program; pick another with --port") from exc
         raise ValueError(f"cannot listen on 127.0.0.1:{port}: {exc.strerror}") from exc
     url = f"http://127.0.0.1:{server.server_port}/"
     print(f"Demon Mode GUI: {url}", flush=True)

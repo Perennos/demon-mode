@@ -5,6 +5,7 @@ const $ = (id) => document.getElementById(id);
 const DASH = '—';
 let provider = 'claude';
 let state = null;
+let stopped = false;
 
 const pct = (v) => (v === null ? DASH : v.toFixed(1));
 const when = (iso) => (iso ? new Date(iso) : null);
@@ -47,7 +48,7 @@ async function api(path, body) {
 // Runs every second: the countdown and the "read N min ago" line.
 function tick() {
   const p = current();
-  if (!p || document.hidden) return;
+  if (stopped || !p || document.hidden) return;
   const reset = when(p.weekly_reset_at);
   const seen = when(p.weekly_observed_at);
   const reason = p.reason.replace(/_/g, ' ');
@@ -77,6 +78,7 @@ function render() {
 }
 
 async function refresh() {
+  if (stopped) return;
   try {
     state = await api('/api/state');
     $('hud-error').textContent = '';
@@ -142,6 +144,17 @@ $('ingest').addEventListener('submit', async (event) => {
   if (ok) {
     event.target.reset();
     choose('claude');
+  }
+});
+
+$('quit').addEventListener('click', async () => {
+  try {
+    await api('/api/quit', {});
+    stopped = true;
+    $('hud').remove();
+    $('bye').hidden = false;
+  } catch (err) {
+    $('hud-error').textContent = 'Error: ' + err.message;
   }
 });
 

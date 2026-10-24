@@ -84,6 +84,7 @@ body {
   padding: var(--space-xl) var(--space-lg) var(--space-3xl);
 }
 .gauge, .panel { min-width: 0; }
+.bye { margin: 0; padding: var(--space-3xl) var(--space-lg); font: 600 var(--text-xl)/1.2 var(--font-display); }
 .panel { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-2xl); align-content: start; }
 
 @media (min-width: 760px) {
@@ -104,7 +105,8 @@ h1, h2 {
   overflow-wrap: anywhere;
   min-width: 0;
 }
-.brand { margin-bottom: var(--space-lg); font-size: var(--text-xl); line-height: 1.1; letter-spacing: .08em; }
+.head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-lg); margin-bottom: var(--space-lg); }
+.brand { flex: 1; font-size: var(--text-xl); line-height: 1.1; letter-spacing: .08em; }
 h2 { padding-top: var(--space-lg); border-top: 1px solid var(--track); font-size: var(--text-lg); line-height: 1.2; letter-spacing: .06em; }
 h2 + * { margin-top: var(--space-lg); }
 

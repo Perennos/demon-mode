@@ -1,14 +1,18 @@
 from datetime import datetime, timedelta, timezone
 import http.client
+import io
 import json
 from pathlib import Path
 import re
+import socket
 import subprocess
 import sys
 import tempfile
 import threading
 import unittest
+from unittest.mock import patch
 
+from demon_mode.__main__ import main
 from demon_mode.gui import GuiServer
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -63,7 +67,11 @@ class GuiTests(unittest.TestCase):
     def test_security_headers_on_every_kind_of_response(self):
         for method, path in (("GET", "/"), ("GET", "/nope"), ("GET", "/brand/other.svg"), ("GET", "/brand/../gui.py")):
             _, response, _ = self.call(method, path)
-            self.assertEqual(response.getheader("Content-Security-Policy"), "default-src 'self'; img-src 'self' data:")
+            csp = response.getheader("Content-Security-Policy")
+            self.assertTrue(csp.startswith("default-src 'self'; img-src 'self' data:"))
+            for part in ("frame-ancestors 'none'", "form-action 'self'", "base-uri 'none'"):
+                self.assertIn(part, csp)
+            self.assertEqual(response.getheader("X-Frame-Options"), "DENY")
             self.assertEqual(response.getheader("X-Content-Type-Options"), "nosniff")
             self.assertEqual(response.getheader("Referrer-Policy"), "no-referrer")
             self.assertEqual(response.getheader("Cache-Control"), "no-store")
@@ -131,6 +139,63 @@ class GuiTests(unittest.TestCase):
         self.assertEqual((status, data["error"]), (400, "input must be valid UTF-8 JSON"))
         self.assertEqual(self.post("/api/ingest", {"text": '{"rate_limits": {}}'})[0], 400)
         self.assertEqual(self.post("/api/ingest", {"text": 5})[0], 400)
+
+
+class LifecycleTests(unittest.TestCase):
+    def start(self, **kwargs):
+        temp = tempfile.TemporaryDirectory()
+        self.addCleanup(temp.cleanup)
+        server = GuiServer(str(Path(temp.name) / "s.sqlite3"), 0, **kwargs)
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        self.addCleanup(server.server_close)
+        return server, thread
+
+    def request(self, server, method, path, headers=None):
+        connection = http.client.HTTPConnection("127.0.0.1", server.server_port, timeout=10)
+        try:
+            connection.request(method, path, body="{}" if method == "POST" else None, headers=headers or {})
+            response = connection.getresponse()
+            return response.status, response.read()
+        finally:
+            connection.close()
+
+    def test_ping(self):
+        server, _ = self.start()
+        status, body = self.request(server, "GET", "/api/ping")
+        self.assertEqual((status, json.loads(body)), (200, {"app": "demon-mode"}))
+        server.shutdown()
+
+    def test_quit_needs_token_then_stops_server(self):
+        server, thread = self.start()
+        self.assertEqual(self.request(server, "POST", "/api/quit")[0], 403)
+        self.assertTrue(thread.is_alive())
+        status, _ = self.request(server, "POST", "/api/quit", {"X-Token": server.token})
+        self.assertEqual(status, 200)
+        thread.join(2)
+        self.assertFalse(thread.is_alive())
+
+    def test_idle_timeout_stops_server(self):
+        _, thread = self.start(idle_timeout=1)
+        thread.join(5)
+        self.assertFalse(thread.is_alive())
+
+    def test_second_instance_on_demon_port_exits_zero(self):
+        server, _ = self.start()
+        with tempfile.TemporaryDirectory() as temp:
+            argv = ["--db", str(Path(temp) / "s.sqlite3"), "gui", "--no-browser", "--port", str(server.server_port)]
+            with patch("sys.stdout", io.StringIO()):
+                self.assertEqual(main(argv), 0)
+        server.shutdown()
+
+    def test_port_held_by_another_program_exits_two(self):
+        with socket.socket() as other:
+            other.bind(("127.0.0.1", 0))
+            other.listen(1)
+            argv = ["gui", "--no-browser", "--port", str(other.getsockname()[1])]
+            with patch("sys.stderr", io.StringIO()) as errors:
+                self.assertEqual(main(argv), 2)
+        self.assertIn("already in use", errors.getvalue())
 
 
 class PackagingTests(unittest.TestCase):
