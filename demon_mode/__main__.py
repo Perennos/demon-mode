@@ -96,7 +96,18 @@ def _parser() -> argparse.ArgumentParser:
     preview = commands.add_parser("preview", help="run a bounded three-frame terminal preview")
     preview.add_argument("--seconds", type=int, choices=(1, 2, 3), default=3)
     preview.add_argument("--plain", action="store_true")
+
+    gui = commands.add_parser("gui", help="serve a local page on 127.0.0.1 and open it in a browser")
+    gui.add_argument("--port", type=_port, default=47823, help="port to listen on (default 47823; 0 picks a free one)")
+    gui.add_argument("--no-browser", action="store_true", help="print the address and do not open a browser")
     return parser
+
+
+def _port(value: str) -> int:
+    number = int(value)
+    if not 0 <= number <= 65535:
+        raise argparse.ArgumentTypeError("port must be between 0 and 65535")
+    return number
 
 
 def _now() -> datetime:
@@ -364,6 +375,10 @@ def _command(args) -> int:
         return 0
     if args.command == "preview":
         return _preview(args.seconds, plain=args.plain)
+    if args.command == "gui":
+        from .gui import serve
+
+        return serve(database, args.port, not args.no_browser)
     raise ValueError("unsupported command")
 
 

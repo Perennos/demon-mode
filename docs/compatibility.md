@@ -8,7 +8,7 @@ percentage is not proof a provider currently permits inference.
 | --- | --- | --- |
 | Manual ledger | Weekly and optional five-hour usage, with original timestamps | Synthetic and installed-package tests |
 | Codex local JSONL | Explicit file; last 1 MiB; `event_msg` with `token_count` or legacy `token_info` | Synthetic tests; transcripts are not a stable API |
-| Codex app-server export | Captured read result, updated-notification params, or unwrapped payload | Synthetic and installed-package tests; no server is launched |
+| Codex app-server export | Captured read result, updated-notification params, or unwrapped payload | Original capture time required; no server is launched |
 | Claude statusline JSON | `rate_limits.seven_day` and optional `five_hour` | Synthetic tests; receipt time cannot prove provider refresh |
 | Local Codex hooks | `UserPromptSubmit` and `hookSpecificOutput.additionalContext` | Generated command tests; native host delivery Untested |
 | Current Claude hooks | Same advisory output; shell-free executable and `args` | Generated command tests; native host delivery Untested |
@@ -51,6 +51,10 @@ without a BOM. Multi-bucket exports select `codex` only. Explicit
 `ordinaryUsageAllowed: false`, `spendControlReached: true`, or non-null
 `rateLimitReachedType` fails even with low percentages. Account identifiers,
 credit details, and unrelated export fields are not retained.
+
+The GUI imports Claude status-line JSON or Codex app-server JSON. Claude readings
+use the import time; Codex requires the original capture time. Its hook template
+uses the same selected database as the GUI session.
 
 ## Hooks and Windows
 

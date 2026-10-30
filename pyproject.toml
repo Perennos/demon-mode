@@ -22,3 +22,6 @@ demon-mode = "demon_mode.__main__:main"
 
 [tool.setuptools]
 packages = ["demon_mode"]
+
+[tool.setuptools.package-data]
+demon_mode = ["brand/*.svg", "web/*"]
