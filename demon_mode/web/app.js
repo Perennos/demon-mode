@@ -114,6 +114,16 @@ async function send(form, path, body) {
   }
 }
 
+function updateIngestFormat() {
+  const codex = $('i-provider').value === 'codex';
+  $('i-text-label').textContent = codex ? 'Codex app-server JSON' : 'Claude status-line JSON';
+  $('i-at-field').hidden = !codex;
+  $('i-at').required = codex;
+  $('i-hint').textContent = codex
+    ? 'Paste a captured app-server response, notification, or unwrapped rate-limit payload. Enter when it was captured in your local time; only the shared Codex bucket is imported.'
+    : 'Claude JSON needs rate_limits.seven_day with used_percentage and resets_at; five_hour is optional. This import is stamped when sent, so use live JSON.';
+}
+
 const iso = (value) => {
   const date = new Date(value);
   return value && !isNaN(date) ? date.toISOString() : undefined;
@@ -140,10 +150,15 @@ $('record').addEventListener('submit', async (event) => {
 
 $('ingest').addEventListener('submit', async (event) => {
   event.preventDefault();
-  const ok = await send(event.target, '/api/ingest', { text: event.target.elements.text.value });
+  const fields = event.target.elements;
+  const name = fields.provider.value;
+  const payload = { provider: name, text: fields.text.value };
+  if (name === 'codex') payload.at = iso(fields.at.value);
+  const ok = await send(event.target, '/api/ingest', payload);
   if (ok) {
-    event.target.reset();
-    choose('claude');
+    fields.text.value = '';
+    fields.at.value = '';
+    choose(name);
   }
 });
 
@@ -159,6 +174,8 @@ $('quit').addEventListener('click', async () => {
 });
 
 document.querySelectorAll('.switch button').forEach((b) => b.addEventListener('click', () => choose(b.dataset.provider)));
+$('i-provider').addEventListener('change', updateIngestFormat);
+updateIngestFormat();
 
 $('copy').addEventListener('click', async () => {
   const note = $('copy-note');

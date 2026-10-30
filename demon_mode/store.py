@@ -79,6 +79,13 @@ def _connect(database: os.PathLike[str] | str | None, *, timeout: float = 5.0) -
         value = os.fspath(path)
     connection = sqlite3.connect(value, timeout=timeout, isolation_level=None)
     connection.row_factory = sqlite3.Row
+    # ISO text can omit fractional seconds or carry an offset in legacy state.
+    # Comparing its spelling sorts 12:00:00Z after 12:00:00.100000Z.
+    def timestamp_order(first: str, second: str) -> int:
+        left, right = parse_timestamp(first), parse_timestamp(second)
+        return (left > right) - (left < right)
+
+    connection.create_collation("demon_timestamp", timestamp_order)
     try:
         version = connection.execute("PRAGMA user_version").fetchone()[0]
         if version > _SCHEMA_VERSION:
@@ -125,7 +132,7 @@ def _connect(database: os.PathLike[str] | str | None, *, timeout: float = 5.0) -
                         "ALTER TABLE governor_state ADD COLUMN history_uncertain_until TEXT"
                     )
                 legacy = connection.execute(
-                    """SELECT provider, COUNT(*) AS row_count, MAX(observed_at) AS latest
+                    """SELECT provider, COUNT(*) AS row_count, MAX(observed_at COLLATE demon_timestamp) AS latest
                        FROM observations GROUP BY provider HAVING COUNT(*) >= ?""",
                     (_MAX_OBSERVATIONS,),
                 ).fetchall()
@@ -269,7 +276,7 @@ def _retained_rows(
         return row
 
     latest_week = add_one(
-        f"SELECT id FROM observations WHERE provider = ? AND {accepted} ORDER BY observed_at DESC, id DESC LIMIT 1",
+        f"SELECT id FROM observations WHERE provider = ? AND {accepted} ORDER BY observed_at COLLATE demon_timestamp DESC, id DESC LIMIT 1",
         (provider, *conflict_values),
     )
     if latest_week is not None:
@@ -292,13 +299,13 @@ def _retained_rows(
             first = add_one(
                 f"SELECT id FROM observations WHERE provider = ? AND {accepted} AND {near_week} "
                 "AND julianday(observed_at) >= julianday(?) AND julianday(observed_at) < julianday(?) "
-                "AND julianday(observed_at) <= julianday(?) ORDER BY observed_at, id LIMIT 1",
+                "AND julianday(observed_at) <= julianday(?) ORDER BY observed_at COLLATE demon_timestamp, id LIMIT 1",
                 params,
             )
             last = add_one(
                 f"SELECT id FROM observations WHERE provider = ? AND {accepted} AND {near_week} "
                 "AND julianday(observed_at) >= julianday(?) AND julianday(observed_at) < julianday(?) "
-                "AND julianday(observed_at) <= julianday(?) ORDER BY observed_at DESC, id DESC LIMIT 1",
+                "AND julianday(observed_at) <= julianday(?) ORDER BY observed_at COLLATE demon_timestamp DESC, id DESC LIMIT 1",
                 params,
             )
             if first is not None:
@@ -308,12 +315,12 @@ def _retained_rows(
         required_ids.add(latest_week[0])
         peak = connection.execute(
             f"SELECT id FROM observations WHERE provider = ? AND {accepted} AND {near_week} "
-            "ORDER BY weekly_used DESC, observed_at DESC, id DESC LIMIT 1",
+            "ORDER BY weekly_used DESC, observed_at COLLATE demon_timestamp DESC, id DESC LIMIT 1",
             (provider, *conflict_values, weekly_reset, _RESET_JITTER_SECONDS),
         ).fetchone()
         earliest_deadline = connection.execute(
             f"SELECT id FROM observations WHERE provider = ? AND {accepted} AND {near_week} "
-            "ORDER BY julianday(weekly_reset_at), observed_at, id LIMIT 1",
+            "ORDER BY julianday(weekly_reset_at), observed_at COLLATE demon_timestamp, id LIMIT 1",
             (provider, *conflict_values, weekly_reset, _RESET_JITTER_SECONDS),
         ).fetchone()
         if peak is not None:
@@ -324,7 +331,7 @@ def _retained_rows(
     latest_short = add_one(
         f"SELECT id FROM observations WHERE provider = ? AND {accepted} "
         "AND short_used IS NOT NULL AND short_reset_at IS NOT NULL "
-        "ORDER BY observed_at DESC, id DESC LIMIT 1",
+        "ORDER BY observed_at COLLATE demon_timestamp DESC, id DESC LIMIT 1",
         (provider, *conflict_values),
     )
     if latest_short is not None:
@@ -338,13 +345,13 @@ def _retained_rows(
         short_peak = connection.execute(
             f"SELECT id FROM observations WHERE provider = ? AND {accepted} "
             f"AND short_used IS NOT NULL AND {short_near} "
-            "ORDER BY short_used DESC, observed_at DESC, id DESC LIMIT 1",
+            "ORDER BY short_used DESC, observed_at COLLATE demon_timestamp DESC, id DESC LIMIT 1",
             (provider, *conflict_values, short_reset, _RESET_JITTER_SECONDS),
         ).fetchone()
         short_deadline = connection.execute(
             f"SELECT id FROM observations WHERE provider = ? AND {accepted} "
             f"AND short_used IS NOT NULL AND {short_near} "
-            "ORDER BY julianday(short_reset_at), observed_at, id LIMIT 1",
+            "ORDER BY julianday(short_reset_at), observed_at COLLATE demon_timestamp, id LIMIT 1",
             (provider, *conflict_values, short_reset, _RESET_JITTER_SECONDS),
         ).fetchone()
         if short_peak is not None:
@@ -353,13 +360,13 @@ def _retained_rows(
             required_ids.add(short_deadline[0])
     latest_conflict = add_one(
         "SELECT id FROM observations WHERE provider = ? AND schema_marker IN (?, ?) "
-        "ORDER BY observed_at DESC, id DESC LIMIT 1",
+        "ORDER BY observed_at COLLATE demon_timestamp DESC, id DESC LIMIT 1",
         (provider, *conflict_values),
     )
     if latest_conflict is not None:
         required_ids.add(latest_conflict[0])
     latest_any = add_one(
-        "SELECT id FROM observations WHERE provider = ? ORDER BY observed_at DESC, id DESC LIMIT 1",
+        "SELECT id FROM observations WHERE provider = ? ORDER BY observed_at COLLATE demon_timestamp DESC, id DESC LIMIT 1",
         (provider,),
     )
     if latest_any is not None:
@@ -367,7 +374,7 @@ def _retained_rows(
     ids.update(required_ids)
 
     recent = connection.execute(
-        "SELECT id FROM observations WHERE provider = ? ORDER BY observed_at DESC, id DESC LIMIT ?",
+        "SELECT id FROM observations WHERE provider = ? ORDER BY observed_at COLLATE demon_timestamp DESC, id DESC LIMIT ?",
         (provider, _MAX_OBSERVATIONS),
     )
     for row in recent:
@@ -380,7 +387,7 @@ def _retained_rows(
     if ordered_ids:
         placeholders = ",".join("?" for _ in ordered_ids)
         selected_rows = connection.execute(
-            f"SELECT * FROM observations WHERE provider = ? AND id IN ({placeholders}) ORDER BY observed_at, id",
+            f"SELECT * FROM observations WHERE provider = ? AND id IN ({placeholders}) ORDER BY observed_at COLLATE demon_timestamp, id",
             (provider, *ordered_ids),
         ).fetchall()
 
@@ -398,7 +405,7 @@ def _retained_rows(
             f"SELECT id FROM observations WHERE provider = ? AND {accepted} "
             "AND ABS((julianday(weekly_reset_at) - julianday(?)) * 86400.0) <= ? "
             "AND julianday(observed_at) >= julianday(?) AND julianday(observed_at) <= julianday(?) - 0.25 "
-            "AND weekly_used <= ? ORDER BY observed_at, id LIMIT 1",
+            "AND weekly_used <= ? ORDER BY observed_at COLLATE demon_timestamp, id LIMIT 1",
             (
                 provider, *conflict_values, latest_observed["weekly_reset_at"],
                 _RESET_JITTER_SECONDS, _stamp(cutoff), _stamp(latest_at), latest_observed["weekly_used"],
@@ -412,7 +419,7 @@ def _retained_rows(
         ):
             placeholders = ",".join("?" for _ in ordered_ids)
             latest_lost = connection.execute(
-                f"SELECT MAX(observed_at) FROM observations WHERE provider = ? AND {accepted} "
+                f"SELECT MAX(observed_at COLLATE demon_timestamp) FROM observations WHERE provider = ? AND {accepted} "
                 "AND ABS((julianday(weekly_reset_at) - julianday(?)) * 86400.0) <= ? "
                 "AND julianday(observed_at) >= julianday(?) AND julianday(observed_at) <= julianday(?) "
                 f"AND id NOT IN ({placeholders})",
@@ -427,7 +434,7 @@ def _retained_rows(
             )
     elif prune and coverage_lost:
         latest_at = connection.execute(
-            "SELECT MAX(observed_at) FROM observations WHERE provider = ?", (provider,)
+            "SELECT MAX(observed_at COLLATE demon_timestamp) FROM observations WHERE provider = ?", (provider,)
         ).fetchone()[0]
         if latest_at is not None:
             _mark_history_uncertain(connection, provider, parse_timestamp(latest_at))
@@ -515,6 +522,23 @@ def _save_state(connection: sqlite3.Connection, provider: str, state: GovernorSt
     )
 
 
+def _decreases(first: Observation, second: Observation) -> bool:
+    """Compare chronological samples independently in each allowance window."""
+    weekly = (
+        abs((first.weekly_reset_at - second.weekly_reset_at).total_seconds())
+        <= _RESET_JITTER_SECONDS
+        and second.weekly_used < first.weekly_used
+    )
+    short = (
+        first.short_used is not None and second.short_used is not None
+        and first.short_reset_at is not None and second.short_reset_at is not None
+        and abs((first.short_reset_at - second.short_reset_at).total_seconds())
+        <= _RESET_JITTER_SECONDS
+        and second.short_used < first.short_used
+    )
+    return weekly or short
+
+
 def _has_conflict(existing: list[Observation], incoming: Observation) -> Optional[str]:
     same_window = [
         item
@@ -525,25 +549,17 @@ def _has_conflict(existing: list[Observation], incoming: Observation) -> Optiona
     for item in same_window:
         if item.observed_at == incoming.observed_at and item != incoming:
             return "conflict-equal-time-v1"
-    accepted = [item for item in same_window if item.schema_marker not in CONFLICT_SCHEMAS]
-    earlier = [item for item in accepted if item.observed_at < incoming.observed_at]
-    if not earlier:
-        return None
-    weekly_peak = max(item.weekly_used for item in earlier)
-    weekly_decreased = incoming.weekly_used < weekly_peak
-    short_prior = [
-        item
-        for item in earlier
-        if item.short_used is not None
-        and item.short_reset_at is not None
-        and incoming.short_used is not None
-        and incoming.short_reset_at is not None
-        and abs((incoming.short_reset_at - item.short_reset_at).total_seconds())
-        <= _RESET_JITTER_SECONDS
-    ]
-    short_peak = max((item.short_used for item in short_prior), default=None)
-    short_decreased = short_peak is not None and incoming.short_used < short_peak
-    return "conflict-decreasing-v1" if weekly_decreased or short_decreased else None
+    accepted = [item for item in existing if item.schema_marker not in CONFLICT_SCHEMAS]
+    for item in accepted:
+        if item.observed_at == incoming.observed_at:
+            if _decreases(item, incoming) or _decreases(incoming, item):
+                return "conflict-equal-time-v1"
+        elif item.observed_at < incoming.observed_at:
+            if _decreases(item, incoming):
+                return "conflict-decreasing-v1"
+        elif _decreases(incoming, item):
+            return "conflict-decreasing-v1"
+    return None
 
 
 def _same_measurement(first: Observation, second: Observation) -> bool:
@@ -608,12 +624,13 @@ def record_observation(
     observation: Observation,
     *,
     now: datetime,
+    timeout: float = 5.0,
 ) -> Policy:
     """Store an accepted reading and its governor transition in one transaction."""
     if observation.provider not in PROVIDERS:
         raise ValueError("unsupported provider")
     current = parse_timestamp(now)
-    connection = _connect(database)
+    connection = _connect(database, timeout=timeout)
     try:
         connection.execute("BEGIN IMMEDIATE")
         prior = _observations(connection, observation.provider, current)
@@ -629,6 +646,17 @@ def record_observation(
         stored = observation
         if conflict:
             stored = replace(observation, schema_marker=conflict)
+            # A backfill can disprove newer trusted headroom. Invalidate those
+            # samples too, so a read cannot hide the conflict merely because its
+            # original observation timestamp is older. A new reading is needed.
+            for item in prior:
+                if (item.schema_marker not in CONFLICT_SCHEMAS
+                        and item.observed_at > observation.observed_at
+                        and _decreases(observation, item)):
+                    connection.execute(
+                        "UPDATE observations SET schema_marker=? WHERE provider=? AND observed_at COLLATE demon_timestamp=?",
+                        (conflict, item.provider, _stamp(item.observed_at)),
+                    )
         _insert(connection, stored)
         readings = _observations(connection, observation.provider, current, prune=True)
         state = _state(connection, observation.provider)
@@ -735,7 +763,7 @@ def load_policy(
         ).fetchone()[0]
         if count > _MAX_OBSERVATIONS and (state is None or state.history_uncertain_until is None):
             latest = connection.execute(
-                "SELECT MAX(observed_at) FROM observations WHERE provider = ?", (provider,)
+                "SELECT MAX(observed_at COLLATE demon_timestamp) FROM observations WHERE provider = ?", (provider,)
             ).fetchone()[0]
             connection.execute("ROLLBACK")
             connection.execute("BEGIN IMMEDIATE")
@@ -746,7 +774,7 @@ def load_policy(
             ).fetchone()[0]
             if count > _MAX_OBSERVATIONS and (state is None or state.history_uncertain_until is None):
                 latest = connection.execute(
-                    "SELECT MAX(observed_at) FROM observations WHERE provider = ?", (provider,)
+                    "SELECT MAX(observed_at COLLATE demon_timestamp) FROM observations WHERE provider = ?", (provider,)
                 ).fetchone()[0] or latest
                 if latest is not None:
                     _mark_history_uncertain(connection, provider, parse_timestamp(latest))
@@ -779,7 +807,7 @@ def load_history(
     try:
         connection.execute("BEGIN")
         rows = connection.execute(
-            "SELECT * FROM observations WHERE provider = ? ORDER BY observed_at DESC, id DESC LIMIT ?",
+            "SELECT * FROM observations WHERE provider = ? ORDER BY observed_at COLLATE demon_timestamp DESC, id DESC LIMIT ?",
             (provider, min(limit, _MAX_OBSERVATIONS)),
         ).fetchall()
         values = [_observation_from_row(row, current) for row in rows]

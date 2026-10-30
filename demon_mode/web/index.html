@@ -93,15 +93,26 @@
     </section>
 
     <section>
-      <h2>Paste status-line JSON</h2>
+      <h2>Import usage data</h2>
       <form id="ingest" class="form">
         <div class="field">
-          <label for="i-text">Claude status-line JSON</label>
+          <label for="i-provider">Provider and format</label>
+          <select id="i-provider" name="provider">
+            <option value="claude">Claude status-line JSON</option>
+            <option value="codex">Codex app-server JSON</option>
+          </select>
+        </div>
+        <div class="field">
+          <label id="i-text-label" for="i-text">Claude status-line JSON</label>
           <textarea id="i-text" name="text" rows="6" spellcheck="false" autocomplete="off" required></textarea>
         </div>
-        <p class="hint">It needs <code>rate_limits.seven_day</code> with <code>used_percentage</code> and <code>resets_at</code>; <code>five_hour</code> is optional. The reading is stamped with the moment you send it, so paste live JSON, not an old copy.</p>
+        <div class="field" id="i-at-field" hidden>
+          <label for="i-at">Original capture time (your local time)</label>
+          <input id="i-at" name="at" type="datetime-local">
+        </div>
+        <p class="hint" id="i-hint" role="status">Claude JSON needs <code>rate_limits.seven_day</code> with <code>used_percentage</code> and <code>resets_at</code>; <code>five_hour</code> is optional. This import is stamped when sent, so use live JSON.</p>
         <div class="row">
-          <button type="submit" class="primary">Read pasted JSON</button>
+          <button type="submit" class="primary">Import JSON</button>
         </div>
         <p class="error" aria-live="polite"></p>
       </form>
@@ -110,7 +121,7 @@
     <section>
       <h2>Hook template</h2>
       <pre id="hook">&mdash;</pre>
-      <p class="hint">A template only: it edits no settings. Merge the command into your client's existing hook list and keep every hook you already have. It reads the default ledger; if you started this page with <code>--db</code>, put the same <code>--db &lt;path&gt;</code> before <code>hook</code> in the command.</p>
+      <p class="hint">A template only: it edits no settings. Merge the command into your client's existing hook list and keep every hook you already have. The generated command uses the same ledger selected for this GUI session.</p>
       <div class="row">
         <button type="button" id="copy">Copy</button>
         <span class="note" id="copy-note" role="status"></span>

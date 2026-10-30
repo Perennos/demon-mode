@@ -18,11 +18,12 @@ MAX_AGE = timedelta(hours=6)
 REFRESH_AGE = timedelta(hours=1)
 
 PROVIDERS = frozenset(("claude", "codex"))
-SOURCES = frozenset(("manual", "claude_statusline", "codex_token_info"))
+SOURCES = frozenset(("manual", "claude_statusline", "codex_token_info", "codex_app_server"))
 SOURCE_SCHEMAS = {
     "manual": "manual-v1",
     "claude_statusline": "claude-statusline-ratelimits-v1",
     "codex_token_info": "codex-event-msg-token-info-v1",
+    "codex_app_server": "codex-app-server-ratelimits-v1",
 }
 CONFLICT_SCHEMAS = frozenset(("conflict-decreasing-v1", "conflict-equal-time-v1"))
 
@@ -161,7 +162,10 @@ def parse_timestamp(value: object) -> datetime:
     if isinstance(value, datetime):
         result = value
     elif isinstance(value, Real):
-        number = float(value)
+        try:
+            number = float(value)
+        except OverflowError as exc:
+            raise ValueError("invalid timestamp") from exc
         if not math.isfinite(number) or abs(number) > 253402300799:
             raise ValueError("invalid timestamp")
         try:
@@ -180,13 +184,19 @@ def parse_timestamp(value: object) -> datetime:
         raise ValueError("invalid timestamp")
     if result.tzinfo is None or result.utcoffset() is None:
         raise ValueError("timestamp must include a UTC offset")
-    return result.astimezone(UTC)
+    try:
+        return result.astimezone(UTC)
+    except (OverflowError, ValueError) as exc:
+        raise ValueError("invalid timestamp") from exc
 
 
 def parse_percent(value: object) -> float:
     if isinstance(value, bool) or not isinstance(value, Real):
         raise ValueError("invalid percentage")
-    number = float(value)
+    try:
+        number = float(value)
+    except OverflowError as exc:
+        raise ValueError("invalid percentage") from exc
     if not math.isfinite(number) or number < 0.0 or number > 100.0:
         raise ValueError("invalid percentage")
     return number
@@ -372,7 +382,8 @@ def short_metrics(readings: Iterable[Observation], now: datetime) -> ShortMetric
     projection = None
     if elapsed >= 0.5 and left > 0:
         pace = latest.short_used / elapsed
-        projection = min(100.0, latest.short_used + pace * left)
+        horizon = (deadline - latest.observed_at).total_seconds() / 3600.0
+        projection = min(100.0, latest.short_used + pace * horizon)
     return ShortMetrics(True, "short_window_measured", latest, deadline, projection, age)
 
 
@@ -543,7 +554,12 @@ def hook_context(policy: Policy, now: datetime, *, limit: int = 2048) -> str:
         "changes client settings, or authorizes extra usage, tasks, or publication."
     )
     if len(context.encode("utf-8")) > limit:
-        safe = replace(policy, mode="Lean", source="unavailable", freshness="context_limit", reason="context_limit_refresh_required", refresh_required=True)
-        return hook_context(safe, now, limit=limit)
+        context = (
+            "Perennos DEMON MODE advisory. Mode: Lean. Refresh readings before any upgrade. "
+            "This advisory never changes permissions or authorizes extra work."
+        )
+        if len(context.encode("utf-8")) > limit:
+            # Tiny caller-supplied limits still terminate and stay UTF-8 safe.
+            context = context.encode("utf-8")[:max(0, limit)].decode("utf-8", errors="ignore")
     return context
 

@@ -184,6 +184,7 @@ dd { margin: 0; min-width: 0; }
   .fields { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 .field { display: grid; gap: var(--space-xs); min-width: 0; }
+.field[hidden] { display: none; }
 label { font: var(--text-sm)/1.2 var(--font-mono); letter-spacing: .06em; color: var(--dim); }
 .hint { margin: 0; max-width: 60ch; font-size: var(--text-base); line-height: 1.5; }
 code { font: var(--text-sm)/1.4 var(--font-mono); overflow-wrap: anywhere; }

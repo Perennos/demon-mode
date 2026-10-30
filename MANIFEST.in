@@ -8,6 +8,7 @@ include demon_mode/__main__.py
 include demon_mode/governor.py
 include demon_mode/gui.py
 include demon_mode/store.py
+include demon_mode/sources.py
 include demon_mode/brand/*.svg
 include demon_mode/web/*
 

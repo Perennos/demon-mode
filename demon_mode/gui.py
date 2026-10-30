@@ -27,6 +27,7 @@ from .__main__ import (
     _read_json,
 )
 from .governor import PROVIDERS
+from .sources import app_server_observation
 from .store import load_policy, record_observation
 
 DEFAULT_PORT = 47823
@@ -58,7 +59,10 @@ def _state(database: Optional[str]) -> dict:
     current = _now()
     return {
         "providers": {
-            name: {**load_policy(database, name, now=current).as_dict(current), "hook": _hook_config(name)}
+            name: {
+                **load_policy(database, name, now=current).as_dict(current),
+                "hook": _hook_config(name, database),
+            }
             for name in sorted(PROVIDERS)
         }
     }
@@ -82,9 +86,19 @@ def _ingest(database: Optional[str], body: dict) -> None:
     text = body.get("text")
     if not isinstance(text, str):
         raise ValueError("text must be a string")
+    provider = body.get("provider", "claude")
     current = _now()
     payload = _read_json(io.BytesIO(text.encode("utf-8")), _MAX_STATUSLINE_BYTES)
-    record_observation(database, _observation_from_statusline(payload, current), now=current)
+    if provider == "claude":
+        observation = _observation_from_statusline(payload, current)
+    elif provider == "codex":
+        observed_at = body.get("at")
+        if not isinstance(observed_at, str) or not observed_at:
+            raise ValueError("Codex app-server import requires the original capture time")
+        observation = app_server_observation(payload, observed_at, current)
+    else:
+        raise ValueError("provider must be claude or codex")
+    record_observation(database, observation, now=current)
 
 
 _ACTIONS = {"/api/record": _record, "/api/ingest": _ingest}

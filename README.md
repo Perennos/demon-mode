@@ -107,7 +107,7 @@ A three-frame gauge animation that plays for three seconds by default (<code>--s
 
 ## GUI
 
-<code>demon gui</code> opens a local page on the same ledger the command line uses: the mode word and the gauge needle, the time to the weekly reset, the percent left, the five-hour percent, and how old the last reading is. You can record a reading, paste Claude status-line JSON, and copy the hook template. It calls the same code as <code>record</code>, <code>ingest claude-statusline</code>, <code>status</code> and <code>hook-config</code>, so the numbers and the error messages match.
+<code>demon gui</code> opens a local page on the same ledger the command line uses: the mode word and the gauge needle, the time to the weekly reset, the percent left, the five-hour percent, and how old the last reading is. You can record a reading, import Claude status-line JSON or Codex app-server JSON with its original capture time, and copy the hook template. The template retains the GUI session's selected database. It calls the same code as <code>record</code>, both <code>ingest</code> commands, <code>status</code> and <code>hook-config</code>, so the numbers and the error messages match.
 
 ~~~sh
 demon gui --no-browser
@@ -136,6 +136,12 @@ demon --db ./demo.sqlite3 status --provider codex --json
 Optional ingestion is limited to supported provider output: Claude status-line JSON supplied on standard input, or an explicit Codex JSON file. Do not scrape accounts, read prompts, supply credentials, or treat token counts or cost totals as subscription allowance.
 
 ## Working modes and limits
+
+Run `demon doctor --provider codex` for local setup diagnostics (`--json` for
+structured output). `demon context --provider codex` prints advice you can paste
+into hosts without local hooks. `demon --version` identifies the installed
+version. See [integration and troubleshooting](docs/compatibility.md) for source
+formats, Windows behavior, and verification boundaries.
 
 | Mode | Advisory working envelope |
 | --- | --- |
@@ -169,6 +175,20 @@ Demon Mode is a gauge with opinions, not a bouncer. It does not:
 demon hook-config --client codex
 demon hook --client codex
 ~~~
+
+`hook-config --client codex --format native` prints an additive native object.
+Custom `--db` paths are preserved as absolute paths. Add
+`--codex-file '/absolute/path/to/selected-session.jsonl'` to `hook-config` for an
+opt-in refresh before each turn; failed refreshes emit conservative advice.
+Claude templates use current executable/argument-array form. Windows Codex
+templates use literal PowerShell arguments and include a decoded script in the
+default template for review. Neither changes settings automatically.
+
+`ingest codex-app-server --file ./rate-limits.json --at '<original-observed-UTC>'`
+accepts a captured official rate-limit response. Original observation time is
+required; other metered buckets and unsupported durations are not mixed into
+Codex allowance. Read [compatibility](docs/compatibility.md) before connecting
+sources.
 
 <code>hook</code> emits compact JSON containing advisory <code>additionalContext</code>; it does not read prompt text from standard input. Confirm that the native client recognizes the output before relying on hook delivery. The commands above are local output examples, not evidence of a completed native-host integration.
 
