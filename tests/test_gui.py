@@ -22,7 +22,9 @@ UTC = timezone.utc
 class GuiTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.temp = tempfile.TemporaryDirectory()
+        # Stay beneath the resolved checkout; macOS's system temp path can
+        # traverse a symlink rejected by the store's state-path guard.
+        cls.temp = tempfile.TemporaryDirectory(dir=ROOT)
         cls.server = GuiServer(str(Path(cls.temp.name) / "state.sqlite3"), 0)
         threading.Thread(target=cls.server.serve_forever, daemon=True).start()
         cls.port = cls.server.server_port
