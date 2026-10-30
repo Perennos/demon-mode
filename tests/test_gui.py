@@ -116,7 +116,7 @@ class GuiTests(unittest.TestCase):
             "five_hour": 10,
             "five_hour_resets": (now + timedelta(hours=4)).isoformat(),
         })
-        self.assertEqual(status, 200)
+        self.assertEqual(status, 200, data)
         self.assertEqual(data["providers"]["codex"]["weekly_used_percent"], 40)
         _, _, body = self.call("GET", "/api/state")
         codex = json.loads(body)["providers"]["codex"]
@@ -133,7 +133,7 @@ class GuiTests(unittest.TestCase):
         reset = int((datetime.now(UTC) + timedelta(days=3)).timestamp())
         text = json.dumps({"rate_limits": {"seven_day": {"used_percentage": 12.5, "resets_at": reset}}})
         status, data = self.post("/api/ingest", {"text": text})
-        self.assertEqual(status, 200)
+        self.assertEqual(status, 200, data)
         self.assertEqual(data["providers"]["claude"]["weekly_used_percent"], 12.5)
         status, data = self.post("/api/ingest", {"text": "{nope"})
         self.assertEqual((status, data["error"]), (400, "input must be valid UTF-8 JSON"))
