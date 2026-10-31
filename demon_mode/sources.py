@@ -16,6 +16,15 @@ class InputUnavailable(ValueError):
     """A source did not contain one unambiguous, supported numeric observation."""
 
 
+def _unique_json_object(pairs):
+    value = {}
+    for key, item in pairs:
+        if key in value:
+            raise ValueError("duplicate JSON object key")
+        value[key] = item
+    return value
+
+
 def _read_json(stream, maximum: int) -> object:
     source = getattr(stream, "buffer", stream)
     raw = source.read(maximum + 1)
@@ -24,7 +33,10 @@ def _read_json(stream, maximum: int) -> object:
     if len(raw) > maximum:
         raise ValueError("input exceeds the configured size limit")
     try:
-        return json.loads(raw.decode("utf-8-sig"))
+        return json.loads(
+            raw.decode("utf-8-sig"),
+            object_pairs_hook=_unique_json_object,
+        )
     except (UnicodeDecodeError, ValueError, RecursionError) as exc:
         raise ValueError("input must be valid UTF-8 JSON") from exc
 
@@ -161,8 +173,8 @@ def app_server_observation(value: object, observed_at: object, now: datetime):
         value = value.get("params")
     if not isinstance(value, dict):
         raise ValueError("Codex app-server rate-limit export is unavailable")
-    if value.get("ordinaryUsageAllowed") is False:
-        raise ValueError("Codex reports ordinary included usage is blocked; refresh provider status")
+    if "ordinaryUsageAllowed" in value and value["ordinaryUsageAllowed"] is not True:
+        raise ValueError("Codex ordinary included usage is not confirmed available; refresh provider status")
     if "rateLimitsByLimitId" in value and value["rateLimitsByLimitId"] is not None:
         buckets = value["rateLimitsByLimitId"]
         if not isinstance(buckets, dict) or "codex" not in buckets:

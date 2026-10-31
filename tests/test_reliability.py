@@ -290,6 +290,17 @@ class IntegrationReliabilityTests(unittest.TestCase):
             self.assertEqual(code, 0, err)
             self.assertEqual(json.loads(out)["weekly_used_percent"], 18)
 
+    def test_app_server_duplicate_permission_key_is_rejected_without_state_mutation(self):
+        with tempfile.TemporaryDirectory() as temp:
+            db = Path(temp).resolve() / "state.sqlite3"
+            rate_limits = json.dumps({"rateLimits": snapshot()})[1:]
+            payload = '{"ordinaryUsageAllowed":false,"ordinaryUsageAllowed":true,' + rate_limits
+            code, out, err = invoke(["--db", str(db), "ingest", "codex-app-server", "--stdin",
+                                    "--at", NOW.isoformat()], stdin=io.StringIO(payload))
+            self.assertEqual(code, 2)
+            self.assertEqual(out, "")
+            self.assertFalse(db.exists())
+
     def test_claude_native_hook_uses_shell_free_argument_vector(self):
         with tempfile.TemporaryDirectory() as temp:
             db = Path(temp).resolve() / "ledger's $literal.sqlite3"
@@ -300,7 +311,10 @@ class IntegrationReliabilityTests(unittest.TestCase):
             self.assertIn(str(db), handler["args"])
 
     def test_app_server_does_not_infer_permission_from_low_percentages(self):
-        for field, value in (("ordinaryUsageAllowed", False), ("spendControlReached", True),
+        for field, value in (("ordinaryUsageAllowed", False), ("ordinaryUsageAllowed", None),
+                             ("ordinaryUsageAllowed", "true"), ("ordinaryUsageAllowed", 1),
+                             ("ordinaryUsageAllowed", 1.0), ("ordinaryUsageAllowed", 0.0),
+                             ("spendControlReached", True),
                              ("rateLimitReachedType", "workspace_owner_usage_limit_reached")):
             with self.subTest(field=field):
                 data = {"rateLimits": snapshot()}
@@ -309,6 +323,19 @@ class IntegrationReliabilityTests(unittest.TestCase):
                 from demon_mode.sources import app_server_observation
                 with self.assertRaises(ValueError):
                     app_server_observation(data, NOW, NOW)
+
+    def test_app_server_rejects_minimal_explicit_null_permission(self):
+        from demon_mode.sources import app_server_observation
+        with self.assertRaises(ValueError):
+            app_server_observation({"ordinaryUsageAllowed": None}, NOW, NOW)
+
+    def test_app_server_allows_missing_or_explicitly_true_usage_permission(self):
+        from demon_mode.sources import app_server_observation
+        for data in ({"rateLimits": snapshot()},
+                     {"ordinaryUsageAllowed": True, "rateLimits": snapshot()}):
+            with self.subTest(data=data):
+                result = app_server_observation(data, NOW, NOW)
+                self.assertEqual(result.weekly_used, 18)
 
     def test_hook_refresh_lock_wait_is_bounded(self):
         with tempfile.TemporaryDirectory() as temp:
