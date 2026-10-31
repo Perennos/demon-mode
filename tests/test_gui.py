@@ -152,12 +152,14 @@ class LifecycleTests(unittest.TestCase):
         thread.start()
 
         def stop_server():
-            if thread.is_alive():
-                server.shutdown()
-                thread.join(2)
-            if thread.is_alive():
-                raise AssertionError("GUI server thread did not stop before socket cleanup")
-            server.server_close()
+            try:
+                if thread.is_alive():
+                    server.shutdown()
+                    thread.join(2)
+                if thread.is_alive():
+                    raise AssertionError("GUI server thread did not stop before socket cleanup")
+            finally:
+                server.server_close()
 
         self.addCleanup(stop_server)
         return server, thread

@@ -51,6 +51,8 @@ without a BOM. Multi-bucket exports select `codex` only. When
 `ordinaryUsageAllowed` is present, only `true` is accepted; `false`, `null`, or
 another value fails closed even with low percentages. A missing field remains
 tolerated for backwards compatibility, including sparse notifications.
+Duplicate JSON object keys are rejected so conflicting permission values cannot
+be resolved by parser-specific last-value behavior.
 `spendControlReached: true` or a
 non-null `rateLimitReachedType` also fails. Account identifiers, credit details,
 and unrelated export fields are not retained.

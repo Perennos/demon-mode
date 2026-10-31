@@ -16,6 +16,15 @@ class InputUnavailable(ValueError):
     """A source did not contain one unambiguous, supported numeric observation."""
 
 
+def _unique_json_object(pairs):
+    value = {}
+    for key, item in pairs:
+        if key in value:
+            raise ValueError("duplicate JSON object key")
+        value[key] = item
+    return value
+
+
 def _read_json(stream, maximum: int) -> object:
     source = getattr(stream, "buffer", stream)
     raw = source.read(maximum + 1)
@@ -24,7 +33,10 @@ def _read_json(stream, maximum: int) -> object:
     if len(raw) > maximum:
         raise ValueError("input exceeds the configured size limit")
     try:
-        return json.loads(raw.decode("utf-8-sig"))
+        return json.loads(
+            raw.decode("utf-8-sig"),
+            object_pairs_hook=_unique_json_object,
+        )
     except (UnicodeDecodeError, ValueError, RecursionError) as exc:
         raise ValueError("input must be valid UTF-8 JSON") from exc
 
