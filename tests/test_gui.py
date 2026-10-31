@@ -13,7 +13,7 @@ import unittest
 from unittest.mock import patch
 
 from demon_mode.__main__ import main
-from demon_mode.gui import GuiServer
+from demon_mode.gui import GuiServer, _database_identity
 
 ROOT = Path(__file__).resolve().parents[1]
 UTC = timezone.utc
@@ -147,7 +147,8 @@ class LifecycleTests(unittest.TestCase):
     def start(self, **kwargs):
         temp = tempfile.TemporaryDirectory()
         self.addCleanup(temp.cleanup)
-        server = GuiServer(str(Path(temp.name) / "s.sqlite3"), 0, **kwargs)
+        database = kwargs.pop("database", str(Path(temp.name) / "s.sqlite3"))
+        server = GuiServer(database, 0, **kwargs)
         thread = threading.Thread(target=server.serve_forever, daemon=True)
         thread.start()
 
@@ -176,8 +177,26 @@ class LifecycleTests(unittest.TestCase):
     def test_ping(self):
         server, _ = self.start()
         status, body = self.request(server, "GET", "/api/ping")
-        self.assertEqual((status, json.loads(body)), (200, {"app": "demon-mode"}))
+        payload = json.loads(body)
+        self.assertEqual((status, payload), (200, {"app": "demon-mode", "database_id": server.database_id}))
+        self.assertNotIn(str(server.database), body.decode("utf-8"))
         server.shutdown()
+
+    def test_database_identity_normalizes_equivalent_paths_without_exposing_them(self):
+        with tempfile.TemporaryDirectory() as temp:
+            path = Path(temp) / "ledger.sqlite3"
+            equivalent = Path(temp) / "." / "ledger.sqlite3"
+            identity = _database_identity(str(path))
+            self.assertIsNotNone(identity)
+            self.assertEqual(identity, _database_identity(str(equivalent)))
+            self.assertNotIn(str(path), identity)
+        self.assertIsNone(_database_identity(":memory:"))
+
+    def test_default_database_matches_its_explicit_path(self):
+        with tempfile.TemporaryDirectory() as temp:
+            path = Path(temp) / "state.sqlite3"
+            with patch("demon_mode.gui.default_database_path", return_value=path):
+                self.assertEqual(_database_identity(None), _database_identity(str(path)))
 
     def test_quit_needs_token_then_stops_server(self):
         server, thread = self.start()
@@ -193,13 +212,37 @@ class LifecycleTests(unittest.TestCase):
         thread.join(5)
         self.assertFalse(thread.is_alive())
 
-    def test_second_instance_on_demon_port_exits_zero(self):
-        server, _ = self.start()
+    def test_second_instance_on_same_ledger_exits_zero(self):
         with tempfile.TemporaryDirectory() as temp:
-            argv = ["--db", str(Path(temp) / "s.sqlite3"), "gui", "--no-browser", "--port", str(server.server_port)]
+            database = Path(temp) / "s.sqlite3"
+            server, _ = self.start(database=str(database))
+            argv = ["--db", str(database), "gui", "--no-browser", "--port", str(server.server_port)]
             with patch("sys.stdout", io.StringIO()):
                 self.assertEqual(main(argv), 0)
         server.shutdown()
+
+    def test_second_instance_on_different_ledger_fails_without_opening_or_creating_it(self):
+        with tempfile.TemporaryDirectory() as temp:
+            existing = Path(temp) / "existing.sqlite3"
+            requested = Path(temp) / "requested.sqlite3"
+            server, _ = self.start(database=str(existing))
+            argv = ["--db", str(requested), "gui", "--port", str(server.server_port)]
+            with patch("sys.stderr", io.StringIO()) as errors, patch("demon_mode.gui.webbrowser.open") as browser:
+                self.assertEqual(main(argv), 2)
+            self.assertIn("already in use", errors.getvalue())
+            browser.assert_not_called()
+            self.assertFalse(requested.exists())
+            server.shutdown()
+
+    def test_second_instance_reuses_normalized_equivalent_ledger(self):
+        with tempfile.TemporaryDirectory() as temp:
+            database = Path(temp) / "nested" / "state.sqlite3"
+            equivalent = database.parent / "." / database.name
+            server, _ = self.start(database=str(database))
+            argv = ["--db", str(equivalent), "gui", "--no-browser", "--port", str(server.server_port)]
+            with patch("sys.stdout", io.StringIO()):
+                self.assertEqual(main(argv), 0)
+            server.shutdown()
 
     def test_port_held_by_another_program_exits_two(self):
         with socket.socket() as other:
