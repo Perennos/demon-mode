@@ -300,7 +300,9 @@ class IntegrationReliabilityTests(unittest.TestCase):
             self.assertIn(str(db), handler["args"])
 
     def test_app_server_does_not_infer_permission_from_low_percentages(self):
-        for field, value in (("ordinaryUsageAllowed", False), ("spendControlReached", True),
+        for field, value in (("ordinaryUsageAllowed", False), ("ordinaryUsageAllowed", None),
+                             ("ordinaryUsageAllowed", "true"), ("ordinaryUsageAllowed", 1),
+                             ("spendControlReached", True),
                              ("rateLimitReachedType", "workspace_owner_usage_limit_reached")):
             with self.subTest(field=field):
                 data = {"rateLimits": snapshot()}
@@ -309,6 +311,14 @@ class IntegrationReliabilityTests(unittest.TestCase):
                 from demon_mode.sources import app_server_observation
                 with self.assertRaises(ValueError):
                     app_server_observation(data, NOW, NOW)
+
+    def test_app_server_allows_missing_or_explicitly_true_usage_permission(self):
+        from demon_mode.sources import app_server_observation
+        for data in ({"rateLimits": snapshot()},
+                     {"ordinaryUsageAllowed": True, "rateLimits": snapshot()}):
+            with self.subTest(data=data):
+                result = app_server_observation(data, NOW, NOW)
+                self.assertEqual(result.weekly_used, 18)
 
     def test_hook_refresh_lock_wait_is_bounded(self):
         with tempfile.TemporaryDirectory() as temp:

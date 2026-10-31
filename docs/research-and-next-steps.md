@@ -1,13 +1,14 @@
 # Research and next improvements
 
-Reviewed for 0.1.1 on October 23, 2026. Public primary sources only; no private
-accounts, provider credentials, or hosted model calls were used.
+Reviewed for 0.1.1 on October 23, 2026; refreshed October 31, 2026. Public
+primary sources only; no private accounts, provider credentials, or hosted
+model calls were used.
 
 | Evidence | Consequence implemented |
 | --- | --- |
 | [OpenAI hooks](https://learn.chatgpt.com/docs/hooks): wrapper, trust, working directory, local/cloud boundary | Additive native config, absolute paths, pasteable fallback, honest host limits |
 | [OpenAI app-server](https://learn.chatgpt.com/docs/app-server): camelCase, durations, multiple buckets, sparse updates | Export reader, original timestamp, shared `codex` selection, unsupported-window rejection |
-| [Account protocol](https://github.com/openai/codex/blob/main/codex-rs/app-server-protocol/src/protocol/v2/account.rs): usage/spend restrictions | Reject blocked exports rather than infer permission from low percentages |
+| [Account protocol](https://github.com/openai/codex/blob/main/codex-rs/app-server-protocol/src/protocol/v2/account.rs): permission is nullable; null means unavailable | Reject present null or malformed permission values as well as explicit denial; tolerate omitted permission fields for backwards compatibility, including sparse notifications |
 | [Codex hook runner](https://github.com/openai/codex/blob/main/codex-rs/hooks/src/engine/command_runner.rs) and [shell detection](https://github.com/openai/codex/blob/main/codex-rs/shell-command/src/shell_detect.rs) | Literal PowerShell wrapper on Windows; no assumed Codex exec form |
 | [Claude command fields](https://code.claude.com/docs/en/hooks#command-hook-fields) | Shell-free native Claude executable/args configuration |
 | [Claude statusline](https://code.claude.com/docs/en/statusline): UI/timer updates, optional fields | Original capture timestamp option; freshness caveat |

@@ -47,10 +47,13 @@ demon ingest codex-app-server --file './rate-limits.json' --at '<original-observ
 ```
 
 `--stdin` is also available; both forms accept up to 64 KiB of UTF-8, with or
-without a BOM. Multi-bucket exports select `codex` only. Explicit
-`ordinaryUsageAllowed: false`, `spendControlReached: true`, or non-null
-`rateLimitReachedType` fails even with low percentages. Account identifiers,
-credit details, and unrelated export fields are not retained.
+without a BOM. Multi-bucket exports select `codex` only. When
+`ordinaryUsageAllowed` is present, only `true` is accepted; `false`, `null`, or
+another value fails closed even with low percentages. A missing field remains
+tolerated for backwards compatibility, including sparse notifications.
+`spendControlReached: true` or a
+non-null `rateLimitReachedType` also fails. Account identifiers, credit details,
+and unrelated export fields are not retained.
 
 The GUI imports Claude status-line JSON or Codex app-server JSON. Claude readings
 use the import time; Codex requires the original capture time. Its hook template

@@ -150,7 +150,16 @@ class LifecycleTests(unittest.TestCase):
         server = GuiServer(str(Path(temp.name) / "s.sqlite3"), 0, **kwargs)
         thread = threading.Thread(target=server.serve_forever, daemon=True)
         thread.start()
-        self.addCleanup(server.server_close)
+
+        def stop_server():
+            if thread.is_alive():
+                server.shutdown()
+                thread.join(2)
+            if thread.is_alive():
+                raise AssertionError("GUI server thread did not stop before socket cleanup")
+            server.server_close()
+
+        self.addCleanup(stop_server)
         return server, thread
 
     def request(self, server, method, path, headers=None):

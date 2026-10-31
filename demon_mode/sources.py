@@ -161,8 +161,8 @@ def app_server_observation(value: object, observed_at: object, now: datetime):
         value = value.get("params")
     if not isinstance(value, dict):
         raise ValueError("Codex app-server rate-limit export is unavailable")
-    if value.get("ordinaryUsageAllowed") is False:
-        raise ValueError("Codex reports ordinary included usage is blocked; refresh provider status")
+    if "ordinaryUsageAllowed" in value and value["ordinaryUsageAllowed"] is not True:
+        raise ValueError("Codex ordinary included usage is not confirmed available; refresh provider status")
     if "rateLimitsByLimitId" in value and value["rateLimitsByLimitId"] is not None:
         buckets = value["rateLimitsByLimitId"]
         if not isinstance(buckets, dict) or "codex" not in buckets:
