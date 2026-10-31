@@ -29,8 +29,13 @@ class InstallTests(unittest.TestCase):
         if bash is None:
             self.skipTest("bash is not on PATH")
         result = subprocess.run([bash, "-n", "install.sh"], cwd=ROOT, capture_output=True, text=True)
-        if result.returncode != 0 and "distribution" in (result.stdout + result.stderr).lower():
-            self.skipTest("bash on PATH is an empty WSL launcher")
+        diagnostic = (result.stdout + result.stderr).lower()
+        empty_wsl = "distribution" in diagnostic or (
+            "wsl" in diagnostic and "execvpe(/bin/bash) failed" in diagnostic and
+            "no such file or directory" in diagnostic
+        )
+        if result.returncode != 0 and empty_wsl:
+            self.skipTest("bash on PATH is a WSL launcher with no usable Linux shell")
         self.assertEqual(result.returncode, 0, result.stderr)
 
     @unittest.skipUnless(WINDOWS, "install.cmd is Windows only")
