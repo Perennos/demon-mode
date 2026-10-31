@@ -4,11 +4,14 @@ from __future__ import annotations
 
 import argparse
 import errno
+import hashlib
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from importlib import resources
 import io
 import json
+import os
+from pathlib import Path
 import secrets
 import sqlite3
 import threading
@@ -28,7 +31,7 @@ from .__main__ import (
 )
 from .governor import PROVIDERS
 from .sources import app_server_observation
-from .store import load_policy, record_observation
+from .store import default_database_path, load_policy, record_observation
 
 DEFAULT_PORT = 47823
 _IDLE_SECONDS = 30 * 60
@@ -66,6 +69,21 @@ def _state(database: Optional[str]) -> dict:
             for name in sorted(PROVIDERS)
         }
     }
+
+
+def _database_identity(database: Optional[str]) -> Optional[str]:
+    """Return a stable, non-reversible identifier for the ledger selected by a GUI."""
+    value = os.fspath(database) if database is not None else os.fspath(default_database_path())
+    if value == ":memory:":
+        # Separate in-memory connections never refer to the same SQLite database.
+        return None
+    try:
+        path = Path(value).expanduser().resolve(strict=False)
+        normalized = os.path.normcase(os.path.normpath(os.fspath(path)))
+        return hashlib.sha256(os.fsencode(normalized)).hexdigest()
+    except (OSError, RuntimeError, ValueError):
+        # An unresolvable path must never be treated as safe to reuse.
+        return None
 
 
 def _record(database: Optional[str], body: dict) -> None:
@@ -137,7 +155,7 @@ class _Handler(BaseHTTPRequestHandler):
     def do_GET(self) -> None:
         path = urlsplit(self.path).path
         if path == "/api/ping":
-            return self._json(HTTPStatus.OK, {"app": "demon-mode"})
+            return self._json(HTTPStatus.OK, {"app": "demon-mode", "database_id": self.server.database_id})
         if path == "/api/state":
             return self._json(HTTPStatus.OK, _state(self.server.database))
         asset = _ASSETS.get(path)
@@ -193,6 +211,7 @@ class GuiServer(ThreadingHTTPServer):
         self._closed = threading.Event()  # before bind: a failed bind calls server_close
         super().__init__(("127.0.0.1", port), _Handler)
         self.database = database
+        self.database_id = _database_identity(database)
         self.idle_timeout = idle_timeout
         self.last_request = time.monotonic()
         threading.Thread(target=self._watch_idle, daemon=True).start()
@@ -212,10 +231,19 @@ class GuiServer(ThreadingHTTPServer):
         super().server_close()
 
 
-def _is_demon_mode(url: str) -> bool:
+def _is_demon_mode(url: str, database: Optional[str] = None) -> bool:
+    database_id = _database_identity(database)
+    if database_id is None:
+        return False
     try:
         with urlopen(url + "api/ping", timeout=2) as response:
-            return json.loads(response.read(1024)).get("app") == "demon-mode"
+            payload = json.loads(response.read(1024))
+            return (
+                isinstance(payload, dict)
+                and payload.get("app") == "demon-mode"
+                and isinstance(payload.get("database_id"), str)
+                and secrets.compare_digest(payload["database_id"], database_id)
+            )
     except (OSError, ValueError, AttributeError):
         return False
 
@@ -226,7 +254,7 @@ def serve(database: Optional[str], port: int, open_browser: bool) -> int:
     except OSError as exc:
         if exc.errno in (errno.EADDRINUSE, 10048):  # 10048: WSAEADDRINUSE
             url = f"http://127.0.0.1:{port}/"
-            if _is_demon_mode(url):
+            if _is_demon_mode(url, database):
                 print(f"Demon Mode GUI: {url}", flush=True)
                 if open_browser:
                     webbrowser.open(url)
