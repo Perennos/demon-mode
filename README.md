@@ -31,23 +31,27 @@ git clone https://github.com/Perennos/demon-mode.git
 cd demon-mode
 ~~~
 
-Use Python 3.10 or newer. From the root of a clean checkout, create a virtual environment and install into it:
+Then run the installer from the checkout. It needs no admin rights and no Python.
 
 ~~~powershell
-# Windows PowerShell
-py -3 -m venv .venv
-.\.venv\Scripts\python.exe -m pip install .
-.\.venv\Scripts\demon.exe --help
+# Windows: double-click install.cmd, or from a terminal
+.\install.cmd
 ~~~
 
 ~~~sh
 # macOS / Linux
-python3 -m venv .venv
-.venv/bin/python -m pip install .
-.venv/bin/demon --help
+bash install.sh
 ~~~
 
-The install smoke command is <code>demon --help</code> when the virtual environment is active. Commands below use that environment's <code>demon</code> executable. Activate it with <code>. .venv/bin/activate</code> on macOS/Linux or <code>.\.venv\Scripts\Activate.ps1</code> in Windows PowerShell. At run time, the CLI has no third-party dependencies, model calls, or network service.
+It downloads the prebuilt <code>demon</code> binary for your system from the pinned GitHub release, checks it against the release's <code>SHA256SUMS</code>, and installs it: <code>~/.local/bin/demon</code> on macOS and Linux, <code>%LOCALAPPDATA%\Perennos\demon-mode\demon.exe</code> on Windows (added to your user PATH). If no prebuilt binary applies, it builds one from the checkout with <code>cargo</code>; without Rust it prints the one-line Rust install command and stops. A download that does not match its checksum is refused. Then it adds the Demon Mode launcher (Desktop and Start menu on Windows, the Desktop on macOS, the applications menu on Linux). Add <code>--dry-run</code> (<code>/dry-run</code> on Windows) to see every step without changing or downloading anything.
+
+To build it yourself instead: <code>cargo install --locked --path .</code> (Rust 1.85 or newer).
+
+The install smoke command is <code>demon --help</code>. At run time Demon Mode is one self-contained binary: no model calls, no network service, no Python. SQLite and the GUI page are built in.
+
+### Upgrading from the Python release (0.1.x)
+
+Your readings stay where they were: the ledger path and format are unchanged, and the new binary reads and writes the same file. One step is yours, once per client: the old hook ran Python (<code>... -m demon_mode hook --client ...</code>), and that command keeps pointing at the old virtual environment until you replace it. Run <code>demon hook-config --client claude</code> (or <code>--client codex</code>, with the same <code>--db</code> or <code>--codex-file</code> you used before), and in your client's hook settings replace only that one old command with the new one. Keep every other hook. After that the old <code>.venv</code> folder is no longer used and can be deleted; delete it only after the hook is replaced, because a hook that still points into it fails on every prompt. [CHANGELOG](CHANGELOG.md) has the full list of what changed.
 
 ## First five minutes
 
@@ -95,7 +99,7 @@ A stale reading caps the mode. Past one hour the report asks for a refresh and t
 demon hook-config --client claude
 ~~~
 
-It prints a small JSON template: the <code>UserPromptSubmit</code> event and the <code>command</code> to run. It does not edit your settings and registers nothing. You merge that command into your client's existing hook list yourself, keeping every hook you already have. Use <code>--client codex</code> for Codex. The command points at the Python that ran <code>hook-config</code>, so run it from the environment you installed into. It reads the default ledger; if you recorded with <code>--db</code>, put the same <code>--db &lt;path&gt;</code> before <code>hook</code> in the command. The hook section below has the rest.
+It prints a small JSON template: the <code>UserPromptSubmit</code> event and the <code>command</code> to run. It does not edit your settings and registers nothing. You merge that command into your client's existing hook list yourself, keeping every hook you already have. Use <code>--client codex</code> for Codex. The command is the absolute path of the <code>demon</code> binary that printed it, so run <code>hook-config</code> again if you move or reinstall the binary somewhere else. It reads the default ledger; if you recorded with <code>--db</code>, pass the same <code>--db &lt;path&gt;</code> to <code>hook-config</code> and it is written into the command. The hook runs on every prompt and starts in a few milliseconds (about 3 ms on a Linux test machine, where the Python release took about 60 ms). The hook section below has the rest.
 
 **4. Preview the gauge.**
 
@@ -138,10 +142,11 @@ Optional ingestion is limited to supported provider output: Claude status-line J
 ## Working modes and limits
 
 Run `demon doctor --provider codex` for local setup diagnostics (`--json` for
-structured output). `demon context --provider codex` prints advice you can paste
-into hosts without local hooks. `demon --version` identifies the installed
-version. See [integration and troubleshooting](docs/compatibility.md) for source
-formats, Windows behavior, and verification boundaries.
+structured output): the mode, the ledger in use, the binary path your hooks
+should point at, and the next step. `demon context --provider codex` prints
+advice you can paste into hosts without local hooks. `demon --version`
+identifies the installed version. See [integration and troubleshooting](docs/compatibility.md)
+for source formats, Windows behavior, and verification boundaries.
 
 | Mode | Advisory working envelope |
 | --- | --- |
@@ -194,9 +199,20 @@ sources.
 
 For a terminal preview, run <code>demon preview</code>. <code>--plain</code> or the <code>NO_COLOR</code> environment variable suppresses color; redirected or non-interactive output uses a static fallback.
 
+## Perennos Tempo and other MCP hosts
+
+An agent that runs inside [Perennos Tempo](https://github.com/Perennos/perennos-tempo), or any MCP host, can ask for the pace itself instead of waiting for a hook. <code>demon mcp</code> serves two read-only tools over standard input and output: <code>demon_status</code> (mode, gauge, readings, freshness and reason per provider) and <code>demon_context</code> (the same advisory text <code>demon context</code> prints). They read the ledger the way <code>status</code> does; they never record a reading, change a setting, or contact anything, and a ledger that does not exist yet is reported as empty rather than created.
+
+~~~sh
+demon tempo mcp-config   # the MCP client entry, with absolute paths and no secrets
+demon tempo policy       # a Tempo tool-policy fragment; you add your own callers
+~~~
+
+Demon Mode never calls Tempo: it is the tool, not the client. [docs/TEMPO.md](docs/TEMPO.md) has the setup, the tool list and an example session.
+
 ## Project and credits
 
-The Python runtime uses the standard library and local files. No model or network service is needed to calculate policy from the local ledger. Keep allowance records and provider exports on a machine you control.
+Demon Mode is written in Rust and runs as one binary on local files; SQLite and the GUI page are built in. No model or network service is needed to calculate policy from the local ledger. Keep allowance records and provider exports on a machine you control.
 
 Source is licensed under the Apache License, Version 2.0; see [LICENSE](LICENSE) and [NOTICE](NOTICE). Brand font materials have their own SIL Open Font License 1.1 terms in [brand/licenses](brand/licenses/) and at [the SIL OFL page](http://scripts.sil.org/OFL): Barlow Condensed by The Barlow Project, Martian Mono by The Martian Mono Project, and IBM Plex Mono © 2017 IBM Corp. IBM's reserved font name is “Plex”; the distributed derivative subset is renamed Perennos Mono Subset.
 

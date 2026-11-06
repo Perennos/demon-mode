@@ -23,7 +23,7 @@ process/auth/network behavior the current local product does not have.
 1. **Native Windows acceptance.** On the user's machine, read its workflow
    contract and installed `/ponytail` instructions; have locally configured
    Argon review this plan and the immutable change diff. Neither was callable in
-   the implementation environment. Run installed-wheel checks, merge hooks
+   the implementation environment. Run the installed-binary checks, merge hooks
    additively, trust them, verify harmless prompt delivery, and record exact
    client versions/results.
 2. **Provider-status persistence.** Future state can represent denial separately
@@ -33,9 +33,9 @@ process/auth/network behavior the current local product does not have.
 3. **Additional durations.** Decide how different quota lengths coexist before
    supporting them. Do not relabel 15 minutes as five hours or infer entitlement
    from token counts, credits, or billing data.
-4. **Signed releases/installers.** Add platform artifacts after native flows
-   pass. Preserve reproducible wheel/sdist checks; source tests alone do not
-   demonstrate a successful desktop install.
+4. **Signed releases.** 0.2.0 adds release binaries with `SHA256SUMS` and
+   installers that verify them. Signing (Authenticode, notarization) is still
+   open; checksums prove the download matches the release, not who built it.
 
 Use existing local tools. This plan requires no new paid service, private-data
 upload, or replacement architecture.

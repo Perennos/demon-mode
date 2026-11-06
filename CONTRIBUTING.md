@@ -4,7 +4,14 @@ Contributions should keep Demon Mode small, local, reviewable, and advisory.
 
 ## Changes
 
-- Keep runtime dependencies in the Python standard library.
+- Keep dependencies few and well known. Read `Cargo.toml` before adding one and
+  say why in the pull request; no network clients, async runtimes, or telemetry.
+- Before a pull request, run `cargo fmt --check`,
+  `cargo clippy --all-targets -- -D warnings`, and `cargo test`.
+- Keep the ledger format and outputs compatible: existing ledgers must keep
+  reading the same way. A format change needs an in-place migration with a
+  backup and a CHANGELOG entry.
+- MCP tools stay read-only.
 - Include synthetic tests for behavior changes; never use private user data as
   a fixture.
 - Explain the problem, the smallest change that addresses it, and any behavior

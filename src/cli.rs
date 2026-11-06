@@ -1,7 +1,7 @@
 //! The `demon` command line: the same subcommands, flags, aliases, output and exit codes as the
 //! Python release, plus `mcp` and `tempo` for Perennos Tempo and other MCP hosts.
 
-use crate::governor::{Mode, Policy, Provider, Val, evaluate_policy, hook_context};
+use crate::governor::{Mode, Policy, Provider, Val, hook_context};
 use crate::hook;
 use crate::paths;
 use crate::pyjson;
@@ -650,11 +650,6 @@ fn hook_command(database: Option<&str>, args: HookArgs, io: &mut Io) -> Outcome 
     }
     emit(io, &(hook::hook_json(&policy) + "\n"))?;
     Ok(0)
-}
-
-/// The fallback policy used when nothing can be read at all.
-pub fn unavailable_policy(provider: Provider, now: Ts) -> Policy {
-    evaluate_policy(provider, &[], None, now, Some("state_unavailable"))
 }
 
 /// Entry point for the `demon` binary.

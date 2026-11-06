@@ -63,8 +63,9 @@ uses the same selected database as the GUI session.
 
 ## Hooks and Windows
 
-Install into the Python environment used to generate the configuration. Review
-the template, then print the native object:
+Install the `demon` binary first (see the README); the template's command is the
+absolute path of the binary that printed it. Review the template, then print the
+native object:
 
 ```sh
 demon --db './allowance.sqlite3' hook-config --client codex
@@ -74,7 +75,13 @@ demon --db './allowance.sqlite3' hook-config --client codex --format native
 Merge its entry into the existing `UserPromptSubmit` list, preserving other
 hooks/settings. Neither command writes settings. On local Codex, review/trust
 the hook through `/hooks`. Existing admin/host policy still applies. Regenerate
-config after moving/deleting the virtual environment.
+config after moving or reinstalling the binary somewhere else.
+
+Upgrading from the Python 0.1.x release: the ledger is unchanged and keeps
+working, but a hook written by the old `hook-config` runs
+`<venv>/python -m demon_mode ... hook ...`. Regenerate the template with the
+same `--db` and `--codex-file` options and replace only that command; keep
+every other hook. `demon doctor` prints the binary path the new command uses.
 
 Custom database paths become absolute. For per-turn refresh, add
 `--codex-file '/absolute/path/to/selected-session.jsonl'` to `hook-config`.
@@ -83,7 +90,7 @@ reads that file only, never prompt stdin. Failure emits Lean/Austere advice and
 preserves the ledger. Hook database waits are 0.2 seconds per operation.
 
 Windows Codex templates invoke Windows PowerShell with an encoded command whose
-arguments are literal strings. The default template includes the decoded
+arguments are literal strings, starting with the full path of `demon.exe`. The default template includes the decoded
 `windows_script` and full `argv` for review. This avoids assuming the host uses
 cmd, PowerShell, or Git Bash quoting. Windows PowerShell must be installed.
 Claude uses current documented executable-plus-`args` form; older clients need
@@ -119,15 +126,17 @@ the client accepted the hook.
 
 | Path | Responsibility |
 | --- | --- |
-| `demon_mode/__main__.py` | CLI, diagnostics, hook output/config |
-| `demon_mode/sources.py` | Bounded input readers and schema selection |
-| `demon_mode/governor.py` | Pure policy, projections, hysteresis, context |
-| `demon_mode/store.py` | Transactions, conflicts, retention |
-| `tests/support.py` | Synthetic fixtures and CLI capture |
-| `tests/test_governor.py`, `test_store.py`, `test_sources.py`, `test_cli.py` | Tests grouped by responsibility |
-| `tests/test_reliability.py` | Integration regressions |
-| `scripts/smoke_installed.py` | Installed-wheel workflow outside checkout |
+| `src/cli.rs` | CLI, diagnostics, hook command, preview |
+| `src/hook.rs` | Native hook output and `hook-config` templates |
+| `src/sources.rs` | Bounded input readers and schema selection |
+| `src/governor.rs` | Pure policy, projections, hysteresis, context |
+| `src/store.rs` | SQLite ledger: transactions, conflicts, retention |
+| `src/ts.rs`, `src/pyjson.rs` | Timestamps and JSON exactly as the 0.1.x ledgers and outputs spell them |
+| `src/gui.rs`, `web/` | Local page (assets embedded at build time) |
+| `src/mcp.rs` | Read-only MCP tools and Tempo snippets ([TEMPO.md](TEMPO.md)) |
+| `tests/` | Synthetic integration tests grouped by responsibility; `tests/installed.rs` drives the built binary from outside the checkout |
 
-Run `python -m unittest discover -s tests -v`. Build into a clean `dist/`, then
-run `python scripts/smoke_installed.py`. CI targets Python 3.10/3.14 on Linux,
-Windows, and macOS; results are evidence only after the specific run passes.
+Run `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings` and
+`cargo test`. CI runs the same on Linux, Windows, and macOS; results are evidence
+only after the specific run passes. Tagged releases are built by
+`.github/workflows/release.yml`.
