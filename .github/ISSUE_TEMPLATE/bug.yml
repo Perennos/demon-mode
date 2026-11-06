@@ -14,8 +14,8 @@ body:
     id: version
     attributes:
       label: Version or commit
-      description: Give the release or commit identifier, if known.
-      placeholder: "e.g. 0.1.0"
+      description: Give the release (`demon --version`) or commit identifier, if known.
+      placeholder: "e.g. 0.2.0"
     validations:
       required: false
   - type: input

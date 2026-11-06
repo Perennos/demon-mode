@@ -1,5 +1,8 @@
 # Reliability and OpenAI compatibility
 
+Historical: this plan records the 0.1.1 work on the Python implementation. The
+product is Rust since 0.2.0; see [CHANGELOG](../CHANGELOG.md).
+
 Requested outcome: improve Demon Mode as a working product while retaining its
 local, standard-library-only, advisory subscription governor design.
 

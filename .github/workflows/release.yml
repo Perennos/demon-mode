@@ -1,0 +1,112 @@
+name: Release
+
+# Push a tag such as v0.2.0 to build, checksum and publish the release binaries.
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: never
+
+jobs:
+  build:
+    name: ${{ matrix.target }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - { target: x86_64-unknown-linux-musl, os: ubuntu-latest }
+          - { target: aarch64-unknown-linux-musl, os: ubuntu-24.04-arm }
+          - { target: x86_64-pc-windows-msvc, os: windows-latest }
+          - { target: aarch64-apple-darwin, os: macos-latest }
+          - { target: x86_64-apple-darwin, os: macos-latest }
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+
+      - name: Check the tag matches Cargo.toml
+        shell: bash
+        run: |
+          version="$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -n 1)"
+          test "v$version" = "$GITHUB_REF_NAME" || { echo "tag $GITHUB_REF_NAME does not match Cargo.toml $version"; exit 1; }
+          echo "NAME=demon-$GITHUB_REF_NAME-${{ matrix.target }}" >> "$GITHUB_ENV"
+
+      - name: Rust toolchain
+        shell: bash
+        run: |
+          rustup toolchain install stable --profile minimal --target ${{ matrix.target }}
+          rustup default stable
+
+      - name: musl C toolchain (bundled SQLite)
+        if: contains(matrix.target, 'musl')
+        run: sudo apt-get update && sudo apt-get install -y musl-tools
+
+      - name: Build
+        shell: bash
+        env:
+          # A static C runtime, so demon.exe needs no Visual C++ redistributable.
+          RUSTFLAGS: ${{ contains(matrix.target, 'windows') && '-C target-feature=+crt-static' || '' }}
+          CC_x86_64_unknown_linux_musl: musl-gcc
+          CC_aarch64_unknown_linux_musl: musl-gcc
+        run: cargo build --release --locked --target ${{ matrix.target }}
+
+      - name: Smoke test
+        if: matrix.target != 'x86_64-apple-darwin'
+        shell: bash
+        run: |
+          bin="target/${{ matrix.target }}/release/demon${{ runner.os == 'Windows' && '.exe' || '' }}"
+          "$bin" --version
+          "$bin" --db "$RUNNER_TEMP/smoke.sqlite3" hook --client claude
+
+      - name: Package (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          mkdir "$NAME"
+          cp "target/${{ matrix.target }}/release/demon" README.md LICENSE NOTICE "$NAME/"
+          tar -czf "$NAME.tar.gz" "$NAME"
+
+      - name: Package (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory $env:NAME | Out-Null
+          Copy-Item "target/${{ matrix.target }}/release/demon.exe", README.md, LICENSE, NOTICE $env:NAME
+          Compress-Archive -Path $env:NAME -DestinationPath "$env:NAME.zip"
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ${{ env.NAME }}
+          path: ${{ env.NAME }}.*
+          if-no-files-found: error
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Checksums
+        working-directory: dist
+        run: |
+          sha256sum demon-* > SHA256SUMS
+          cat SHA256SUMS
+
+      - name: Publish with gh
+        working-directory: dist
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --verify-tag \
+            --title "Perennos DEMON MODE $GITHUB_REF_NAME" \
+            --notes "Binaries for Linux (static musl), Windows and macOS. Verify downloads against SHA256SUMS; install.sh and install.cmd do this for you. See CHANGELOG.md for upgrade notes." \
+            demon-* SHA256SUMS
