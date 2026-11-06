@@ -69,10 +69,15 @@ tests in `tests/`.
 
 ### Verification
 
-The Python suite's behaviours were ported to Rust tests. A differential run fed the same randomized
-readings through 0.1.1 and 0.2.0 and compared every output and the resulting ledgers; see the
-pull request for the numbers. Native host delivery (a client actually showing the hook text) is
-still Untested, as before.
+The Python suite's behaviours were ported to Rust tests. A differential run
+(`tools/parity/compare.py`) fed the same randomized readings through 0.1.1 and 0.2.0 with fixed
+clocks: 600 scenarios, 80,477 operations (records, status, context, hook and history, including
+dense histories past the 64-row retention cap, conflicts, and edited or legacy ledgers), with
+byte-identical output and identical SQLite rows, including a hand-off where 0.1.1 wrote half a
+ledger and 0.2.0 continued on the same file. A second corpus of 74 malformed and edge-case
+status-line, Codex JSONL and app-server inputs gave the same exit codes, messages and stored rows
+through both command lines. Native host delivery (a client actually showing the hook text) is still
+Untested, as before.
 
 ## 0.1.1 and earlier
 
