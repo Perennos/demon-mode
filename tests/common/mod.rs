@@ -23,7 +23,13 @@ pub struct TempDir(PathBuf);
 impl TempDir {
     pub fn new() -> TempDir {
         static COUNTER: AtomicUsize = AtomicUsize::new(0);
-        let base = std::fs::canonicalize(std::env::temp_dir()).expect("temp dir");
+        // Canonical on Unix; on Windows canonicalize adds a `\\?\` prefix, which the Codex reader
+        // refuses like any other `\\` path, as the Python release did.
+        let base = if cfg!(windows) {
+            std::env::temp_dir()
+        } else {
+            std::fs::canonicalize(std::env::temp_dir()).expect("temp dir")
+        };
         let unique = format!(
             "demon-test-{}-{}-{}",
             std::process::id(),

@@ -65,7 +65,8 @@ fn installed_binary_workflow() {
         let handler = &config["hooks"]["UserPromptSubmit"][0]["hooks"][0];
         let output = if let Some(args) = handler["args"].as_array() {
             let args: Vec<&str> = args.iter().map(|arg| arg.as_str().unwrap()).collect();
-            assert_eq!(handler["command"], std::fs::canonicalize(demon).unwrap().to_string_lossy().as_ref());
+            let command = std::fs::canonicalize(handler["command"].as_str().unwrap()).unwrap();
+            assert_eq!(command, std::fs::canonicalize(demon).unwrap());
             run_in(root, handler["command"].as_str().unwrap(), &args)
         } else {
             let command = handler["command"].as_str().unwrap();
