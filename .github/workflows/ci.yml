@@ -12,31 +12,49 @@ concurrency:
   group: demon-ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  CARGO_TERM_COLOR: never
+  RUST_BACKTRACE: "1"
+
 jobs:
-  test-and-package:
-    name: ${{ matrix.os }} / Python ${{ matrix.python-version }}
+  test:
+    name: ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 10
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
-        python-version: ["3.10", "3.14"]
     steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
 
-      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
-        with:
-          python-version: ${{ matrix.python-version }}
+      - name: Rust toolchain
+        run: |
+          rustup toolchain install stable --profile minimal --component rustfmt,clippy
+          rustup default stable
+          rustc --version
 
-      - name: Install pinned build tools
-        run: python -m pip install --disable-pip-version-check --no-deps --index-url https://pypi.org/simple setuptools==84.1.0 wheel==0.48.0 packaging==26.3
+      - name: Format
+        run: cargo fmt --check
 
-      - name: Run synthetic source tests
-        run: python -m unittest discover -s tests -v
+      - name: Clippy
+        run: cargo clippy --all-targets --locked -- -D warnings
 
-      - name: Build wheel and source distribution
-        run: python -I -B -c 'import setuptools.build_meta as b; b.build_sdist("dist"); b.build_wheel("dist")'
+      - name: Tests
+        run: cargo test --locked
 
-      - name: Install wheel in a clean temporary environment outside the checkout
-        run: python scripts/smoke_installed.py
+      - name: Install script dry run (bash)
+        if: runner.os != 'Windows'
+        run: |
+          out="$RUNNER_TEMP/dry"
+          INSTALL_BIN_DIR="$out/bin" INSTALL_SHORTCUT_DIR="$out/shortcuts" bash install.sh --dry-run
+          test ! -e "$out"
+
+      - name: Install script dry run (cmd)
+        if: runner.os == 'Windows'
+        shell: cmd
+        run: |
+          set "INSTALL_BIN_DIR=%RUNNER_TEMP%\dry\bin"
+          set "INSTALL_SHORTCUT_DIR=%RUNNER_TEMP%\dry\shortcuts"
+          call install.cmd /dry-run
+          if exist "%RUNNER_TEMP%\dry" exit /b 1
