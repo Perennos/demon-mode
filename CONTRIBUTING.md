@@ -7,7 +7,13 @@ Contributions should keep Demon Mode small, local, reviewable, and advisory.
 - Keep dependencies few and well known. Read `Cargo.toml` before adding one and
   say why in the pull request; no network clients, async runtimes, or telemetry.
 - Before a pull request, run `cargo fmt --check`,
-  `cargo clippy --all-targets -- -D warnings`, and `cargo test`.
+  `cargo clippy --all-targets -- -D warnings`, and `cargo test`. CI runs them on
+  Linux, Windows, and macOS.
+- To type-check the Windows build from Linux, run
+  `cargo check --target x86_64-pc-windows-gnu`. The bundled SQLite is C, and its
+  build script compiles it even for `check`, so this needs a C compiler for that
+  target: MinGW-w64, or `zig cc -target x86_64-windows-gnu` named in
+  `CC_x86_64_pc_windows_gnu` (with `zig ar` in `AR_x86_64_pc_windows_gnu`).
 - Keep the ledger format and outputs compatible: existing ledgers must keep
   reading the same way. A format change needs an in-place migration with a
   backup and a CHANGELOG entry.

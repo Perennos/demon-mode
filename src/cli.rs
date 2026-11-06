@@ -71,21 +71,28 @@ enum Command {
 struct RecordArgs {
     #[arg(long, value_parser = PROVIDERS)]
     provider: Option<String>,
-    #[arg(long, allow_negative_numbers = true)]
+    /// weekly percent used, 0 to 100
+    #[arg(long, value_name = "PERCENT", allow_negative_numbers = true)]
     weekly: Option<f64>,
-    #[arg(long)]
+    /// weekly reset time, ISO 8601 with a UTC offset (a trailing Z works)
+    #[arg(long, value_name = "TIME")]
     resets: Option<String>,
-    #[arg(long = "five-hour", visible_alias = "five", allow_negative_numbers = true)]
+    /// five-hour percent used; give it with --five-hour-resets
+    #[arg(long = "five-hour", value_name = "PERCENT", visible_alias = "five", allow_negative_numbers = true)]
     five_hour: Option<f64>,
-    #[arg(long = "five-hour-resets", visible_alias = "five-resets")]
+    /// five-hour reset time
+    #[arg(long = "five-hour-resets", value_name = "TIME", visible_alias = "five-resets")]
     five_resets: Option<String>,
-    #[arg(long = "at", visible_alias = "observed-at")]
+    /// when the reading was taken (default: now)
+    #[arg(long = "at", value_name = "TIME", visible_alias = "observed-at")]
     observed_at: Option<String>,
     /// read one bounded manual JSON object from stdin
     #[arg(long)]
     stdin_json: bool,
+    /// print the resulting policy as JSON
     #[arg(long)]
     json: bool,
+    /// no colour
     #[arg(long)]
     plain: bool,
 }

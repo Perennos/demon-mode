@@ -1,0 +1,10 @@
+# Developer-only: replays operations against this checkout's library for tools/parity/compare.py.
+[package]
+name = "demon-parity"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+demon-mode = { path = "../.." }
+serde_json = "1"

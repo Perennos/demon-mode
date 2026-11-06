@@ -40,4 +40,5 @@ demon-mode.local.toml
 !.env.example
 
 # Rust build output
-/target/
+target/
+tools/parity/Cargo.lock
